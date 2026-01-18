@@ -1,0 +1,5 @@
+# SoulLink_Live2D Server 依赖
+aiohttp>=3.9.0
+aiohttp-cors>=0.7.0
+watchdog>=3.0.0
+PyYAML>=6.0
