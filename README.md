@@ -268,9 +268,12 @@ graph TD
     P1 --> P2 --> P3
 ```
 
-##  许可证
 
-MIT License
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=nanlingyin/SoulLink_Live2D&type=Date&t=20260112)](https://www.star-history.com/#nanlingyin/SoulLink_Live2D&Date)
+
 
 ## 致谢
 
@@ -287,7 +290,11 @@ MIT License
 ## 联系与支持
 
 如果你对项目感兴趣，或需要 **API 中转站的使用权限**，欢迎通过以下方式联系：
-
+>*（需要长期合作或者个人/开源/企业项目的单独适配也欢迎联系我）*
 * **Email**: [20241008398@stu.shzu.edu.cn](mailto:20241008398@stu.shzu.edu.cn)
 * **Project Group**: 704578889 (LynngNAN的项目群)
 * **API Service**: [http://115.190.234.39:3000](https://www.google.com/url?sa=E&source=gmail&q=http://115.190.234.39:3000)
+
+##  许可证
+
+MIT License
