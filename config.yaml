@@ -32,9 +32,9 @@ llm:
     provider: siliconflow
 
     # API Key (必填)
-    #apiKey: "sk-41cqCxakVWic8T8pSLaOUofkRDldNETjGySXZfuygcKBSqZw"
-    #apiKey: "sk-jkjpfyjbughuffoqsrrheaeraefcxotzcvtrbrbksacnptgo"
-    apiKey: "sk-VdTI3HTXR9brMNx71Mzb1IhzPIGaeNcXTcFVNM0rdDmArYqm"
+    #apiKey: "sk-xxx"
+    #apiKey: "sk-xxx"
+    apiKey: "sk-xxx"
 
     # API 基础 URL
     # baseUrl: https://api.ephone.chat/v1
