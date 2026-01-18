@@ -1,0 +1,27 @@
+# 模型压缩包目录
+模型压缩包合集/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE 和编辑器
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 核心文件夹和模型处理
+core/
+ct2model/
+
+# 模型文件夹及所有内容
+models/
+
+# 其他常见忽略文件
+.DS_Store
+*.log
+.env

@@ -1,0 +1,88 @@
+# SoulLink_Live2D 配置文件
+# 请根据您的需要修改以下配置
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 3000
+  # 模型扫描目录（只扫描 l2d 目录）
+  modelDirs:
+    - "./l2d"
+
+# LLM 配置
+llm:
+  # 表情生成模式: "local" (本地模型) 或 "api" (远程API)
+  mode: "api"
+
+  # ========== 本地模型配置 (mode: local) ==========
+  local:
+    # 基础模型路径
+    baseModelPath: "./ct2model/models/qwen2.5-1.5b-instruct"
+    # LoRA 权重路径
+    loraModelPath: "./ct2model/output/l2d-motion-lora/final"
+    # 设备: auto / cuda / cpu
+    device: "auto"
+    # 推理参数
+    temperature: 0.1
+    maxNewTokens: 512
+
+  # ========== 远程 API 配置 (mode: api) ==========
+  api:
+    # API 提供商: openai, deepseek, claude, ollama, custom
+    provider: siliconflow
+
+    # API Key (必填)
+    #apiKey: "sk-41cqCxakVWic8T8pSLaOUofkRDldNETjGySXZfuygcKBSqZw"
+    #apiKey: "sk-jkjpfyjbughuffoqsrrheaeraefcxotzcvtrbrbksacnptgo"
+    apiKey: "sk-VdTI3HTXR9brMNx71Mzb1IhzPIGaeNcXTcFVNM0rdDmArYqm"
+
+    # API 基础 URL
+    # baseUrl: https://api.ephone.chat/v1
+    # DeepSeek: https://api.deepseek.com/v1
+    # Ollama: http://localhost:11434/v1
+    # baseUrl: "https://api.siliconflow.cn/v1"
+    baseUrl: "http://115.190.234.39:3000/v1"
+
+    # 模型名称
+    # OpenAI: gpt-4o-mini
+    # DeepSeek: deepseek-chat
+    # Ollama: llama2, mistral, etc.
+    # model: "deepseek-ai/DeepSeek-V3.2"
+    model: "gemini-2.5-flash-lite"
+    # model: "gpt-4o-mini"
+
+    # 生成参数
+    temperature: 0.1
+    maxTokens: 800
+    #出现一些报错的时候可以适当拉高maxTokens
+
+# 动画配置
+animation:
+  # 默认表情过渡时间 (毫秒)
+  defaultDuration: 1000
+  
+  # 缓动函数: linear, easeInQuad, easeOutQuad, easeInOutQuad, 
+  #          easeInCubic, easeOutCubic, easeInOutCubic, easeInOutSine
+  easing: "easeInOutCubic"
+  
+  # 自动重置延迟 (毫秒) - LLM生成的表情在此时间后自动恢复默认
+  autoResetDelay: 1500
+
+# 模型配置
+model:
+  # 模型目录路径 (相对于 index.html)
+  directory: "./l2d"
+  
+  # 默认缩放比例
+  defaultScale: 0.8
+
+# 界面配置
+ui:
+  # 是否显示控制面板
+  showControlPanel: true
+  
+  # 是否显示物理参数 (头发、裙子等)
+  showPhysicsParams: false
+  
+  # 默认背景 (索引，0-6)
+  defaultBackground: 0
