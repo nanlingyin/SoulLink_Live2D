@@ -19,12 +19,15 @@ core/
 ct2model/
 
 # 模型文件夹及所有内容
-models/
-#openspec内容
+l2d_models/
+
+# 项目规范文档
 openspec/
+
 # 配置和文档文件
 AGENTS.md
 CLAUDE.md
+
 # 其他常见忽略文件
 .DS_Store
 *.log
