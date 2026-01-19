@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoulLink_Live2D - AI Live2D 表情控制</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- 背景层 -->
+    <div class="background-layer"></div>
+    <div class="blur-overlay"></div>
+
+    <!-- 聊天面板 -->
+    <div id="chat-panel">
+        <div class="chat-header">
+            <h3>AI 对话</h3>
+            <div class="chat-header-buttons">
+                <button onclick="clearChat()" title="清空聊天">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                    </svg>
+                </button>
+                <button onclick="toggleChatPanel()" title="最小化">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="chat-message system">欢迎！输入消息与 AI 互动，AI 会同时做出表情反应</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="输入消息..." onkeypress="handleChatKeyPress(event)">
+            <button id="chat-send" onclick="sendChatMessage()">发送</button>
+        </div>
+    </div>
+
+    <button id="toggle-chat" onclick="toggleChatPanel()">打开对话</button>
+
+    <div id="live2d-container">
+        <div class="loading" id="loading">
+            <div style="font-weight: 600;">SoulLink</div>
+            <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">正在加载模型...</div>
+        </div>
+        <canvas id="live2d-canvas"></canvas>
+        <div class="controls">
+            <button onclick="resetModel()">重置位置</button>
+            <button onclick="toggleBackground()">切换背景</button>
+        </div>
+    </div>
+
+    <button id="toggle-panel" onclick="toggleControlPanel()">控制面板</button>
+
+    <!-- 动态生成的控制面板 -->
+    <div id="control-panel">
+        <h3>加载中...</h3>
+        <p style="color: #86868b; font-size: 12px;">等待模型加载完成</p>
+    </div>
+
+    <!-- 系统信息 -->
+    <div id="system-info">
+        <strong>SoulLink</strong> - AI 驱动的 Live2D 表情控制 |
+        模型目录: <code>./l2d/</code> |
+        <span style="opacity: 0.8;">🖱️ 拖动模型 | 🔍 滚轮缩放</span>
+    </div>
+
+    <!-- Cubism 4 Core -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+
+    <!-- PixiJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+
+    <!-- pixi-live2d-display -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+
+    <!-- SoulLink 核心 - 新模块化结构 -->
+    <script src="js/services/config.js"></script>
+    <script src="js/live2d/loader.js"></script>
+    <script src="js/services/expression.js"></script>
+    <script src="js/services/websocket.js"></script>
+    <script src="js/components/chat-panel.js"></script>
+
+    <!-- 初始化 -->
+    <script>
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', async () => {
+            // 尝试连接 WebSocket 服务器
+            const wsConnected = await initWebSocket();
+
+            if (!wsConnected) {
+                // WebSocket 连接失败，使用本地模式加载
+                console.log('使用本地模式加载模型');
+                initLive2D();
+            }
+            // 如果 WebSocket 连接成功，模型会通过服务器推送加载
+
+            // 初始化聊天模块
+            initChat();
+        });
+    </script>
+</body>
+</html>
