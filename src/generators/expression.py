@@ -5,18 +5,18 @@ LLM 表情生成器 (API 模式)
 import re
 import time
 import json
-from typing import Dict
+from typing import Dict, Union
 
 import aiohttp
 
-from ..config import LLMConfig
+from ..config import LLMConfig, APIConfig
 from .base import BaseGenerator
 
 
 class ExpressionGenerator(BaseGenerator):
     """通过远程 API 生成表情参数"""
 
-    def __init__(self, config: LLMConfig):
+    def __init__(self, config: Union[LLMConfig, APIConfig]):
         self.config = config
         self.available_parameters: Dict[str, dict] = {}
 

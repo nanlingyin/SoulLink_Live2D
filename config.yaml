@@ -29,13 +29,13 @@ llm:
   # ========== 远程 API 配置 (mode: api) ==========
   api:
     # API 提供商: openai, deepseek, claude, ollama, custom
-    provider: siliconflow
+    #provider: siliconflow
 
     # API Key (必填)
 
     #apiKey: "sk-xxx"
     #apiKey: "sk-xxx"
-    apiKey: "sk-xxx"
+    #apiKey: "sk-rxRthcrOx2WrZf3aJXJEtO5hch2Eta35DzsXJf85hVUsJ4qc"
 
 
     # API 基础 URL
@@ -43,20 +43,41 @@ llm:
     # DeepSeek: https://api.deepseek.com/v1
     # Ollama: http://localhost:11434/v1
     # baseUrl: "https://api.siliconflow.cn/v1"
-    baseUrl: "http://115.190.234.39:3000/v1"
+    #baseUrl: "http://115.190.234.39:3000/v1"
 
     # 模型名称
     # OpenAI: gpt-4o-mini
     # DeepSeek: deepseek-chat
     # Ollama: llama2, mistral, etc.
     # model: "deepseek-ai/DeepSeek-V3.2"
-    model: "gemini-2.5-flash-lite"
+    #model: "gemini-2.5-flash-lite"
     # model: "gpt-4o-mini"
 
     # 生成参数
     temperature: 0.1
     maxTokens: 800
     #出现一些报错的时候可以适当拉高maxTokens
+
+    #========== 表情生成专用配置 (可选) ==========
+    ##配置后可以为表情生成使用不同的模型/API
+    expression:
+      provider: openai
+      apiKey: "sk-xxx"  # 不填则继承 api.apiKey
+      baseUrl: "https://api.openai.com/v1"  # 不填则继承 api.baseUrl
+      model: "gpt-4o-mini"  # 推荐使用轻量模型，响应快
+      temperature: 0.1
+      maxTokens: 2000
+
+    #========== 聊天对话专用配置 (可选) ==========
+    #如果不配置，将使用上面的 api 配置
+    #配置后可以为聊天对话使用不同的模型/API
+    chat:
+      provider: openai
+      apiKey: "sk-xxx"  # 不填则继承 api.apiKey
+      baseUrl: "https://api.openai.com/v1"  # 不填则继承 api.baseUrl
+      model: "gpt-4o"  # 可以使用更强大的模型获得更好的对话质量
+      temperature: 0.5
+      maxTokens: 5000
 
 # 动画配置
 animation:

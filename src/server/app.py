@@ -23,6 +23,10 @@ class SoulLinkServer:
         self.config = config
         self.scanner = ModelScanner(config.server.model_dirs)
 
+        # 获取表情生成和聊天的独立配置
+        expression_config = config.llm.expression if config.llm.expression else config.llm
+        chat_config = config.llm.chat if config.llm.chat else config.llm
+
         # 根据配置选择表情生成器
         if config.llm.mode == "local":
             local_gen = LocalExpressionGenerator(config.llm)
@@ -31,12 +35,12 @@ class SoulLinkServer:
                 print("🏠 使用本地模型生成表情")
             else:
                 print("⚠️ 本地模型不可用，回退到 API 模式")
-                self.expression_generator = ExpressionGenerator(config.llm)
+                self.expression_generator = ExpressionGenerator(expression_config)
         else:
-            self.expression_generator = ExpressionGenerator(config.llm)
+            self.expression_generator = ExpressionGenerator(expression_config)
             print("🌐 使用远程 API 生成表情")
 
-        self.chat_generator = ChatGenerator(config.llm)
+        self.chat_generator = ChatGenerator(chat_config)
         self.clients: Set[web.WebSocketResponse] = set()
         self.current_model: Optional[str] = None
 

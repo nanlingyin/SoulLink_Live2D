@@ -3,7 +3,18 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
+
+
+@dataclass
+class APIConfig:
+    """单个 API 端点配置"""
+    provider: str = "openai"
+    api_key: str = ""
+    base_url: str = "https://api.openai.com/v1"
+    model: str = "gpt-4o-mini"
+    temperature: float = 0.7
+    max_tokens: int = 500
 
 
 @dataclass
@@ -22,6 +33,9 @@ class LLMConfig:
     local_device: str = "auto"
     local_temperature: float = 0.1
     local_max_new_tokens: int = 512
+    # 独立的表情生成和聊天配置
+    expression: Optional[APIConfig] = None
+    chat: Optional[APIConfig] = None
 
 
 @dataclass

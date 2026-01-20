@@ -3,18 +3,18 @@
 """
 
 import time
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import aiohttp
 
-from ..config import LLMConfig
+from ..config import LLMConfig, APIConfig
 from .base import BaseGenerator
 
 
 class ChatGenerator(BaseGenerator):
     """聊天对话生成器"""
 
-    def __init__(self, config: LLMConfig):
+    def __init__(self, config: Union[LLMConfig, APIConfig]):
         self.config = config
         self.system_prompt = """你是一个可爱、活泼的虚拟助手。请用简洁、友好的方式回复用户。
 回复要求：
@@ -46,7 +46,7 @@ class ChatGenerator(BaseGenerator):
             "model": self.config.model,
             "messages": messages,
             "temperature": self.config.temperature,
-            "max_tokens": 200
+            "max_tokens": self.config.max_tokens
         }
 
         print(f"💬 [聊天回复] 调用 API ({self.config.model})...")

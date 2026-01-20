@@ -7,7 +7,7 @@ import os
 import yaml
 from typing import Dict, Any
 
-from .models import LLMConfig, ServerConfig, AnimationConfig, ModelConfig, UIConfig
+from .models import LLMConfig, APIConfig, ServerConfig, AnimationConfig, ModelConfig, UIConfig
 
 
 class ConfigManager:
@@ -38,6 +38,32 @@ class ConfigManager:
                 api_data = llm_data.get('api', {})
                 local_data = llm_data.get('local', {})
 
+                # 解析表情生成专用配置（从 api 下或 llm 下读取，继承 api 默认值）
+                expression_data = api_data.get('expression', {}) or llm_data.get('expression', {})
+                expression_config = None
+                if expression_data:
+                    expression_config = APIConfig(
+                        provider=expression_data.get('provider', api_data.get('provider', 'openai')),
+                        api_key=expression_data.get('apiKey', api_data.get('apiKey', '')),
+                        base_url=expression_data.get('baseUrl', api_data.get('baseUrl', 'https://api.openai.com/v1')),
+                        model=expression_data.get('model', api_data.get('model', 'gpt-4o-mini')),
+                        temperature=expression_data.get('temperature', api_data.get('temperature', 0.7)),
+                        max_tokens=expression_data.get('maxTokens', api_data.get('maxTokens', 500))
+                    )
+
+                # 解析聊天对话专用配置（从 api 下或 llm 下读取，继承 api 默认值）
+                chat_data = api_data.get('chat', {}) or llm_data.get('chat', {})
+                chat_config = None
+                if chat_data:
+                    chat_config = APIConfig(
+                        provider=chat_data.get('provider', api_data.get('provider', 'openai')),
+                        api_key=chat_data.get('apiKey', api_data.get('apiKey', '')),
+                        base_url=chat_data.get('baseUrl', api_data.get('baseUrl', 'https://api.openai.com/v1')),
+                        model=chat_data.get('model', api_data.get('model', 'gpt-4o-mini')),
+                        temperature=chat_data.get('temperature', api_data.get('temperature', 0.7)),
+                        max_tokens=chat_data.get('maxTokens', api_data.get('maxTokens', 500))
+                    )
+
                 self.llm = LLMConfig(
                     mode=llm_data.get('mode', 'api'),
                     provider=api_data.get('provider', 'openai'),
@@ -51,7 +77,10 @@ class ConfigManager:
                     local_lora_model_path=local_data.get('loraModelPath', './ct2model/output/l2d-motion-lora/final'),
                     local_device=local_data.get('device', 'auto'),
                     local_temperature=local_data.get('temperature', 0.1),
-                    local_max_new_tokens=local_data.get('maxNewTokens', 512)
+                    local_max_new_tokens=local_data.get('maxNewTokens', 512),
+                    # 独立配置
+                    expression=expression_config,
+                    chat=chat_config
                 )
 
                 # 加载服务器配置
@@ -92,7 +121,20 @@ class ConfigManager:
                     print(f"   📦 本地模型: {self.llm.local_base_model_path}")
                     print(f"   🔧 LoRA: {self.llm.local_lora_model_path}")
                 else:
-                    print(f"   🌐 API: {self.llm.model} @ {self.llm.base_url}")
+                    # 显示表情生成配置
+                    if self.llm.expression:
+                        expr_model = self.llm.expression.model
+                        expr_url = self.llm.expression.base_url
+                        print(f"   🎭 表情API: {expr_model} @ {expr_url}")
+                    else:
+                        print(f"   🎭 表情API: {self.llm.model} @ {self.llm.base_url} (默认)")
+                    # 显示聊天配置
+                    if self.llm.chat:
+                        chat_model = self.llm.chat.model
+                        chat_url = self.llm.chat.base_url
+                        print(f"   💬 聊天API: {chat_model} @ {chat_url}")
+                    else:
+                        print(f"   💬 聊天API: {self.llm.model} @ {self.llm.base_url} (默认)")
                 print(f"   🎬 动画: duration={self.animation.default_duration}ms, easing={self.animation.easing}")
 
             except Exception as e:
