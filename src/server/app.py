@@ -11,7 +11,7 @@ from aiohttp import web
 from ..config import ConfigManager
 from ..models import ModelScanner, Live2DModel
 from ..models.watcher import start_watcher
-from ..generators import ExpressionGenerator, LocalExpressionGenerator, ChatGenerator
+from ..generators import ExpressionGenerator, LocalExpressionGenerator, ChatGenerator, TTSGenerator
 from .routes import setup_routes
 from .handlers import WebSocketHandler
 
@@ -41,6 +41,26 @@ class SoulLinkServer:
             print("🌐 使用远程 API 生成表情")
 
         self.chat_generator = ChatGenerator(chat_config)
+
+        # 初始化 TTS 生成器
+        self.tts_generator = None
+        if config.voice.tts and config.voice.tts.enabled:
+            self.tts_generator = TTSGenerator(config.voice.tts)
+            print("🔊 TTS 语音合成已启用")
+
+        # 初始化本地 ASR（如果配置为 local 模式）
+        self.asr = None
+        if config.voice.asr and config.voice.asr.enabled and config.voice.asr.mode == "local":
+            try:
+                from ..asr import WhisperASR
+                self.asr = WhisperASR(config.voice.asr)
+                if self.asr.is_available():
+                    print("🎤 本地 ASR (Whisper) 已启用")
+                else:
+                    self.asr = None
+            except Exception as e:
+                print(f"⚠️ 本地 ASR 初始化失败: {e}")
+
         self.clients: Set[web.WebSocketResponse] = set()
         self.current_model: Optional[str] = None
 

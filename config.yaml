@@ -89,7 +89,7 @@ animation:
   easing: "easeInOutCubic"
   
   # 自动重置延迟 (毫秒) - LLM生成的表情在此时间后自动恢复默认
-  autoResetDelay: 1500
+  autoResetDelay: 3000
 
 # 模型配置
 model:
@@ -103,9 +103,44 @@ model:
 ui:
   # 是否显示控制面板
   showControlPanel: true
-  
+
   # 是否显示物理参数 (头发、裙子等)
   showPhysicsParams: false
-  
+
   # 默认背景 (索引，0-6)
   defaultBackground: 0
+
+# 语音配置 (ASR 语音识别 + TTS 语音合成)
+voice:
+  # ========== ASR 语音识别配置 ==========
+  asr:
+    # 是否启用语音识别
+    enabled: true
+    # 识别模式: "browser" (浏览器 Web Speech API) 或 "local" (本地 Whisper)
+    mode: "browser"
+    # 语言代码
+    language: "zh-CN"
+    # 识别完成后是否自动发送消息给 AI
+    autoSend: true
+    # 本地 Whisper 模式配置 (mode: local 时生效)
+    local:
+      # 模型存放路径
+      modelPath: "./models/whisper"
+      # 模型大小: tiny/base/small/medium/large
+      # 运行 python scripts/download_asr_model.py 下载模型
+      modelSize: "base"
+
+  # ========== TTS 语音合成配置 ==========
+  tts:
+    # 是否启用语音合成 (AI 回复时播放语音)
+    enabled: false
+    # TTS API 地址 (OpenAI 格式)
+    baseUrl: "https://api.openai.com/v1"
+    # API Key
+    apiKey: "sk-xxx"
+    # 模型名称
+    model: "tts-1"
+    # 声音选择: alloy/echo/fable/onyx/nova/shimmer
+    voice: "alloy"
+    # 语速 (0.25 - 4.0)
+    speed: 1.0

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SoulLink_Live2D - AI Live2D 表情控制</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎭</text></svg>">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -33,6 +34,7 @@
         </div>
         <div class="chat-input-area">
             <input type="text" id="chat-input" placeholder="输入消息..." onkeypress="handleChatKeyPress(event)">
+            <button id="voice-btn" class="voice-btn" onclick="toggleVoiceRecording()" title="点击开始语音输入">🎤</button>
             <button id="chat-send" onclick="sendChatMessage()">发送</button>
         </div>
     </div>
@@ -77,6 +79,8 @@
 
     <!-- SoulLink 核心 - 新模块化结构 -->
     <script src="js/services/config.js"></script>
+    <script src="js/services/asr.js"></script>
+    <script src="js/services/tts.js"></script>
     <script src="js/live2d/loader.js"></script>
     <script src="js/services/expression.js"></script>
     <script src="js/services/websocket.js"></script>

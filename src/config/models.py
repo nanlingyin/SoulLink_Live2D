@@ -67,3 +67,38 @@ class UIConfig:
     show_control_panel: bool = True
     show_physics_params: bool = False
     default_background: int = 0
+
+
+@dataclass
+class ASRLocalConfig:
+    """本地 ASR (Whisper) 配置"""
+    model_path: str = "./models/whisper"
+    model_size: str = "base"  # tiny/base/small/medium/large
+
+
+@dataclass
+class ASRConfig:
+    """ASR 语音识别配置"""
+    enabled: bool = True
+    mode: str = "browser"  # "browser" (Web Speech API) 或 "local" (Whisper)
+    language: str = "zh-CN"
+    auto_send: bool = True  # 识别后是否自动发送
+    local: Optional[ASRLocalConfig] = None
+
+
+@dataclass
+class TTSConfig:
+    """TTS 语音合成配置"""
+    enabled: bool = False
+    base_url: str = "https://api.openai.com/v1"
+    api_key: str = ""
+    model: str = "tts-1"
+    voice: str = "alloy"  # alloy/echo/fable/onyx/nova/shimmer
+    speed: float = 1.0
+
+
+@dataclass
+class VoiceConfig:
+    """语音配置（ASR + TTS）"""
+    asr: Optional[ASRConfig] = None
+    tts: Optional[TTSConfig] = None

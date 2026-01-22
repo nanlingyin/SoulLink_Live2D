@@ -7,7 +7,10 @@ import os
 import yaml
 from typing import Dict, Any
 
-from .models import LLMConfig, APIConfig, ServerConfig, AnimationConfig, ModelConfig, UIConfig
+from .models import (
+    LLMConfig, APIConfig, ServerConfig, AnimationConfig, ModelConfig, UIConfig,
+    ASRLocalConfig, ASRConfig, TTSConfig, VoiceConfig
+)
 
 
 class ConfigManager:
@@ -23,6 +26,7 @@ class ConfigManager:
         self.animation = AnimationConfig()
         self.model = ModelConfig()
         self.ui = UIConfig()
+        self.voice = VoiceConfig()
         self._raw_config: Dict[str, Any] = {}  # 保存原始配置用于前端
         self.load()
 
@@ -115,6 +119,39 @@ class ConfigManager:
                     default_background=ui_data.get('defaultBackground', 0)
                 )
 
+                # 加载语音配置
+                voice_data = self._raw_config.get('voice', {})
+                asr_data = voice_data.get('asr', {})
+                local_asr_data = asr_data.get('local', {})
+                tts_data = voice_data.get('tts', {})
+
+                asr_local_config = ASRLocalConfig(
+                    model_path=local_asr_data.get('modelPath', './models/whisper'),
+                    model_size=local_asr_data.get('modelSize', 'base')
+                ) if local_asr_data else None
+
+                asr_config = ASRConfig(
+                    enabled=asr_data.get('enabled', True),
+                    mode=asr_data.get('mode', 'browser'),
+                    language=asr_data.get('language', 'zh-CN'),
+                    auto_send=asr_data.get('autoSend', True),
+                    local=asr_local_config
+                )
+
+                tts_config = TTSConfig(
+                    enabled=tts_data.get('enabled', False),
+                    base_url=tts_data.get('baseUrl', 'https://api.openai.com/v1'),
+                    api_key=tts_data.get('apiKey', ''),
+                    model=tts_data.get('model', 'tts-1'),
+                    voice=tts_data.get('voice', 'alloy'),
+                    speed=tts_data.get('speed', 1.0)
+                )
+
+                self.voice = VoiceConfig(
+                    asr=asr_config,
+                    tts=tts_config
+                )
+
                 print(f"✅ 配置已加载: {self.config_path}")
                 print(f"   🤖 LLM 模式: {self.llm.mode}")
                 if self.llm.mode == "local":
@@ -136,6 +173,17 @@ class ConfigManager:
                     else:
                         print(f"   💬 聊天API: {self.llm.model} @ {self.llm.base_url} (默认)")
                 print(f"   🎬 动画: duration={self.animation.default_duration}ms, easing={self.animation.easing}")
+                # 显示语音配置
+                if self.voice.asr:
+                    asr_status = "启用" if self.voice.asr.enabled else "禁用"
+                    asr_mode = self.voice.asr.mode
+                    print(f"   🎤 ASR: {asr_status} ({asr_mode}模式)")
+                if self.voice.tts:
+                    tts_status = "启用" if self.voice.tts.enabled else "禁用"
+                    if self.voice.tts.enabled:
+                        print(f"   🔊 TTS: {tts_status} (voice={self.voice.tts.voice})")
+                    else:
+                        print(f"   🔊 TTS: {tts_status}")
 
             except Exception as e:
                 print(f"⚠️ 加载配置失败: {e}，使用默认配置")
@@ -172,5 +220,20 @@ class ConfigManager:
                 "showControlPanel": self.ui.show_control_panel,
                 "showPhysicsParams": self.ui.show_physics_params,
                 "defaultBackground": self.ui.default_background
+            },
+            "voice": {
+                "asr": {
+                    "enabled": self.voice.asr.enabled if self.voice.asr else True,
+                    "mode": self.voice.asr.mode if self.voice.asr else "browser",
+                    "language": self.voice.asr.language if self.voice.asr else "zh-CN",
+                    "autoSend": self.voice.asr.auto_send if self.voice.asr else True
+                },
+                "tts": {
+                    "enabled": self.voice.tts.enabled if self.voice.tts else False,
+                    "model": self.voice.tts.model if self.voice.tts else "tts-1",
+                    "voice": self.voice.tts.voice if self.voice.tts else "alloy",
+                    "speed": self.voice.tts.speed if self.voice.tts else 1.0
+                    # 不暴露 apiKey
+                }
             }
         }

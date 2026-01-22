@@ -24,6 +24,12 @@ def setup_routes(app: web.Application, config: ConfigManager, ws_handler) -> Non
     app.router.add_get('/api/models', create_get_models_handler(ws_handler.server))
     app.router.add_get('/api/config', create_get_config_handler(config))
 
+    # TTS API 路由
+    app.router.add_post('/api/tts', create_tts_handler(ws_handler.server))
+
+    # ASR API 路由（本地模式）
+    app.router.add_post('/api/asr', create_asr_handler(ws_handler.server))
+
     # 静态文件路由
     _setup_static_routes(app, config)
 
@@ -105,3 +111,59 @@ def create_get_config_handler(config: ConfigManager):
     async def get_config(request: web.Request) -> web.Response:
         return web.json_response(config.get_frontend_config())
     return get_config
+
+
+def create_tts_handler(server):
+    """创建 TTS 请求处理器"""
+    async def handle_tts(request: web.Request) -> web.Response:
+        if not server.tts_generator or not server.tts_generator.is_enabled():
+            return web.Response(status=404, text="TTS is disabled")
+
+        try:
+            data = await request.json()
+            text = data.get("text", "")
+            voice = data.get("voice", None)
+
+            if not text:
+                return web.Response(status=400, text="Text is required")
+
+            # 生成音频
+            audio_data = await server.tts_generator.generate(text, voice)
+
+            return web.Response(
+                body=audio_data,
+                content_type="audio/mpeg"
+            )
+        except Exception as e:
+            print(f"❌ TTS 处理失败: {e}")
+            return web.Response(status=500, text=str(e))
+
+    return handle_tts
+
+
+def create_asr_handler(server):
+    """创建本地 ASR 请求处理器"""
+    async def handle_asr(request: web.Request) -> web.Response:
+        if not server.asr or not server.asr.is_available():
+            return web.Response(status=404, text="Local ASR is disabled")
+
+        try:
+            # 读取上传的音频文件
+            reader = await request.multipart()
+            field = await reader.next()
+
+            if not field or field.name != 'audio':
+                return web.Response(status=400, text="Audio file is required")
+
+            audio_data = await field.read()
+
+            # 执行识别
+            text = await server.asr.transcribe(audio_data)
+
+            return web.json_response({"text": text})
+
+        except Exception as e:
+            print(f"❌ ASR 处理失败: {e}")
+            return web.Response(status=500, text=str(e))
+
+    return handle_asr
