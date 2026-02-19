@@ -19,6 +19,10 @@ class SoulLinkClient {
         this.onModelList = null;
         this.onLoadModel = null;
         this.onExpression = null;
+        this.onTTSMotionStart = null;
+        this.onTTSMotionFrame = null;
+        this.onTTSMotionDone = null;
+        this.onTTSMotionError = null;
         this.onError = null;
     }
     
@@ -54,6 +58,9 @@ class SoulLinkClient {
                 console.log('✅ WebSocket 已连接');
                 this.connected = true;
                 this.reconnectAttempts = 0;
+                if (typeof window.setSystemConnectionState === 'function') {
+                    window.setSystemConnectionState(true);
+                }
                 
                 if (this.onConnected) this.onConnected();
                 resolve();
@@ -62,6 +69,9 @@ class SoulLinkClient {
             this.ws.onclose = (event) => {
                 console.log(`🔌 WebSocket 断开: ${event.code}`);
                 this.connected = false;
+                if (typeof window.setSystemConnectionState === 'function') {
+                    window.setSystemConnectionState(false);
+                }
                 
                 if (this.onDisconnected) this.onDisconnected();
                 
@@ -109,6 +119,22 @@ class SoulLinkClient {
                 case 'expression':
                     console.log('🎭 收到表情指令:', msg);
                     if (this.onExpression) this.onExpression(msg);
+                    break;
+
+                case 'tts_motion_start':
+                    if (this.onTTSMotionStart) this.onTTSMotionStart(msg);
+                    break;
+
+                case 'tts_motion_frame':
+                    if (this.onTTSMotionFrame) this.onTTSMotionFrame(msg);
+                    break;
+
+                case 'tts_motion_done':
+                    if (this.onTTSMotionDone) this.onTTSMotionDone(msg);
+                    break;
+
+                case 'tts_motion_error':
+                    if (this.onTTSMotionError) this.onTTSMotionError(msg);
                     break;
                     
                 case 'reset':
@@ -206,6 +232,29 @@ class SoulLinkClient {
             message: message,
             context: context,
             autoReset: autoReset
+        });
+    }
+
+    /**
+     * 启动 TTS 播放期连续动作会话
+     */
+    startTTSMotion(sessionId, text, durationSec, context = '') {
+        return this.send({
+            type: 'tts_motion_start',
+            sessionId,
+            text,
+            durationSec,
+            context
+        });
+    }
+
+    /**
+     * 停止 TTS 播放期连续动作会话
+     */
+    stopTTSMotion(sessionId) {
+        return this.send({
+            type: 'tts_motion_stop',
+            sessionId
         });
     }
     

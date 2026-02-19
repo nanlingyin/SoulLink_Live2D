@@ -40,6 +40,12 @@ class SoulLinkServer:
             self.expression_generator = ExpressionGenerator(expression_config)
             print("🌐 使用远程 API 生成表情")
 
+        if hasattr(self.expression_generator, "set_runtime_options"):
+            self.expression_generator.set_runtime_options(
+                eye_open_binary=self.config.animation.eye_open_binary,
+                joint_motion_boost=self.config.animation.joint_motion_boost,
+            )
+
         self.chat_generator = ChatGenerator(chat_config)
 
         # 初始化 TTS 生成器

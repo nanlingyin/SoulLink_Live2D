@@ -1,35 +1,42 @@
 """
-WebSocket 消息处理器
+WebSocket message handlers.
 """
 
-import json
-import time
 import asyncio
-from typing import TYPE_CHECKING, Set
+import json
+import math
+import time
+import uuid
 from dataclasses import asdict
+from typing import TYPE_CHECKING, Dict, Set
 
-from aiohttp import web, WSMsgType
+from aiohttp import WSMsgType, web
 
 if TYPE_CHECKING:
     from .app import SoulLinkServer
 
 
 class WebSocketHandler:
-    """WebSocket 消息处理器"""
+    """WebSocket handler for chat, expression and TTS-motion streams."""
 
-    def __init__(self, server: 'SoulLinkServer'):
+    MOUTH_PARAM_HINTS = ("mouth", "parammouth")
+    MAX_TTS_MOTION_FRAMES = 120
+
+    def __init__(self, server: "SoulLinkServer"):
         self.server = server
+        self._tts_motion_tasks: Dict[str, asyncio.Task] = {}
+        self._client_sessions: Dict[web.WebSocketResponse, Set[str]] = {}
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
-        """处理 WebSocket 连接"""
+        """Handle a new websocket connection."""
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
         self.server.clients.add(ws)
+        self._client_sessions.setdefault(ws, set())
         client_ip = request.remote
-        print(f"🔗 WebSocket 客户端连接: {client_ip} (当前 {len(self.server.clients)} 个)")
+        print(f"🔆 WebSocket 客户端连接: {client_ip} (当前 {len(self.server.clients)} 个)")
 
-        # 发送模型列表
         await self._send_model_list(ws)
 
         try:
@@ -39,22 +46,20 @@ class WebSocketHandler:
                 elif msg.type == WSMsgType.ERROR:
                     print(f"❌ WebSocket 错误: {ws.exception()}")
         finally:
+            await self._cancel_client_tts_motion_sessions(ws)
             self.server.clients.discard(ws)
-            print(f"🔌 WebSocket 客户端断开: {client_ip} (剩余 {len(self.server.clients)} 个)")
+            self._client_sessions.pop(ws, None)
+            print(f"🔲 WebSocket 客户端断开: {client_ip} (剩余 {len(self.server.clients)} 个)")
 
         return ws
 
     async def _send_model_list(self, ws: web.WebSocketResponse) -> None:
-        """发送模型列表给客户端"""
+        """Send model list to client."""
         models = [asdict(m) for m in self.server.scanner.models.values()]
-        await ws.send_json({
-            "type": "model_list",
-            "models": models,
-            "current": self.server.current_model
-        })
+        await ws.send_json({"type": "model_list", "models": models, "current": self.server.current_model})
 
     async def _handle_message(self, ws: web.WebSocketResponse, data: str) -> None:
-        """处理客户端消息"""
+        """Route websocket message by type."""
         try:
             msg = json.loads(data)
             msg_type = msg.get("type")
@@ -71,75 +76,60 @@ class WebSocketHandler:
                 await self._handle_expression(msg)
             elif msg_type == "reset":
                 await self._handle_reset(msg)
+            elif msg_type == "tts_motion_start":
+                await self._handle_tts_motion_start(ws, msg)
+            elif msg_type == "tts_motion_stop":
+                await self._handle_tts_motion_stop(ws, msg)
             elif msg_type == "ping":
                 await ws.send_json({"type": "pong"})
-
         except json.JSONDecodeError:
-            await ws.send_json({
-                "type": "error",
-                "message": "无效的 JSON 格式"
-            })
+            await self._send_ws_error(ws, "无效的 JSON 格式")
         except Exception as e:
             print(f"❌ 处理消息错误: {e}")
-            await ws.send_json({
-                "type": "error",
-                "message": str(e)
-            })
+            await self._send_ws_error(ws, str(e))
+
+    async def _send_ws_error(self, ws: web.WebSocketResponse, message: str) -> None:
+        if ws.closed:
+            return
+        await ws.send_json({"type": "error", "message": message})
 
     async def _handle_load_model(self, ws: web.WebSocketResponse, msg: dict) -> None:
-        """处理加载模型请求"""
         model_name = msg.get("model")
         if model_name in self.server.scanner.models:
             self.server.current_model = model_name
             model = self.server.scanner.models[model_name]
-            await self.server.broadcast({
-                "type": "load_model",
-                "model": asdict(model)
-            })
-            print(f"📦 加载模型: {model_name}")
-        else:
-            await ws.send_json({
-                "type": "error",
-                "message": f"模型不存在: {model_name}"
-            })
+            await self.server.broadcast({"type": "load_model", "model": asdict(model)})
+            print(f"📝 加载模型: {model_name}")
+            return
+        await self._send_ws_error(ws, f"模型不存在: {model_name}")
 
     async def _handle_update_parameters(self, ws: web.WebSocketResponse, msg: dict) -> None:
-        """处理更新参数请求"""
         parameters = msg.get("parameters", {})
         self.server.expression_generator.update_parameters(parameters)
-        await ws.send_json({
-            "type": "parameters_updated",
-            "count": len(parameters)
-        })
+        await ws.send_json({"type": "parameters_updated", "count": len(parameters)})
 
     async def _handle_chat(self, ws: web.WebSocketResponse, msg: dict) -> None:
-        """处理聊天消息，触发 LLM 生成表情"""
         text = msg.get("message", "")
         context = msg.get("context", "")
         auto_reset = msg.get("autoReset", True)
 
         try:
             result = await self.server.expression_generator.generate(text, context)
-
-            # 广播表情指令给所有客户端
-            await self.server.broadcast({
-                "type": "expression",
-                "expression": result.get("expression", ""),
-                "parameters": result.get("parameters", {}),
-                "duration": result.get("duration", 800),
-                "autoReset": auto_reset
-            })
-
-            print(f"🎭 生成表情: {result.get('expression')}")
-
+            await self.server.broadcast(
+                {
+                    "type": "expression",
+                    "expression": result.get("expression", ""),
+                    "parameters": result.get("parameters", {}),
+                    "duration": result.get("duration", 800),
+                    "autoReset": auto_reset,
+                }
+            )
+            print(f"🎁 生成表情: {result.get('expression')}")
         except Exception as e:
-            await ws.send_json({
-                "type": "error",
-                "message": str(e)
-            })
+            await self._send_ws_error(ws, str(e))
 
     async def _handle_chat_with_reply(self, ws: web.WebSocketResponse, msg: dict) -> None:
-        """处理完整聊天：并发生成对话回复和表情"""
+        """Handle full chat request: reply + one-shot expression in parallel."""
         text = msg.get("message", "")
         context = msg.get("context", "")
         history = msg.get("history", [])
@@ -147,64 +137,210 @@ class WebSocketHandler:
 
         try:
             total_start_time = time.time()
-            print(f"\n{'='*50}")
-            print(f"📨 收到聊天请求: {text[:50]}...")
+            print(f"\n{'=' * 50}")
+            print(f"📠 收到聊天请求: {text[:50]}...")
 
-            # 并发调用聊天和表情生成
             chat_task = self.server.chat_generator.generate(text, history)
             expression_task = self.server.expression_generator.generate(text, context)
-
-            # 等待两个任务完成
-            results = await asyncio.gather(
-                chat_task,
-                expression_task,
-                return_exceptions=True
-            )
+            results = await asyncio.gather(chat_task, expression_task, return_exceptions=True)
 
             chat_reply = results[0] if not isinstance(results[0], Exception) else f"聊天生成失败: {results[0]}"
             expression_result = results[1] if not isinstance(results[1], Exception) else {}
-
             total_elapsed = (time.time() - total_start_time) * 1000
 
-            # 构建响应
             response = {
                 "type": "chat_response",
                 "reply": chat_reply,
                 "expression": expression_result.get("expression", "") if isinstance(expression_result, dict) else "",
                 "parameters": expression_result.get("parameters", {}) if isinstance(expression_result, dict) else {},
                 "duration": expression_result.get("duration", 800) if isinstance(expression_result, dict) else 800,
-                "autoReset": auto_reset
+                "autoReset": auto_reset,
             }
-
-            # 发送给请求的客户端
             await ws.send_json(response)
 
-            # 打印统计信息
-            print(f"{'='*50}")
+            print(f"{'=' * 50}")
             print(f"✅ 请求处理完成 | 总耗时: {total_elapsed:.0f}ms")
             if isinstance(expression_result, dict):
-                print(f"   🎭 表情: {expression_result.get('expression', '未知')}")
-            print(f"{'='*50}\n")
-
+                print(f"   🎁 表情: {expression_result.get('expression', '未知')}")
+            print(f"{'=' * 50}\n")
         except Exception as e:
             print(f"❌ 聊天处理错误: {e}")
-            await ws.send_json({
-                "type": "chat_error",
-                "error": str(e)
-            })
+            if not ws.closed:
+                await ws.send_json({"type": "chat_error", "error": str(e)})
 
     async def _handle_expression(self, msg: dict) -> None:
-        """处理直接设置表情参数"""
-        await self.server.broadcast({
-            "type": "expression",
-            "parameters": msg.get("parameters", {}),
-            "duration": msg.get("duration", 800),
-            "autoReset": msg.get("autoReset", False)
-        })
+        await self.server.broadcast(
+            {
+                "type": "expression",
+                "parameters": msg.get("parameters", {}),
+                "duration": msg.get("duration", 800),
+                "autoReset": msg.get("autoReset", False),
+            }
+        )
 
     async def _handle_reset(self, msg: dict) -> None:
-        """处理重置表情"""
-        await self.server.broadcast({
-            "type": "reset",
-            "duration": msg.get("duration", 800)
-        })
+        await self.server.broadcast({"type": "reset", "duration": msg.get("duration", 800)})
+
+    async def _handle_tts_motion_start(self, ws: web.WebSocketResponse, msg: dict) -> None:
+        """Start one TTS continuous-motion session."""
+        session_id = str(msg.get("sessionId") or uuid.uuid4())
+        text = (msg.get("text") or "").strip()
+        context = msg.get("context", "")
+        requested_duration = msg.get("durationSec", 0)
+        frame_interval_sec = 1.0  # fixed: one frame per second
+
+        if not text:
+            await self._send_ws_error(ws, "tts_motion_start 缺少 text")
+            return
+
+        try:
+            duration_sec = float(requested_duration)
+        except (TypeError, ValueError):
+            duration_sec = 0.0
+
+        total_frames = max(1, math.ceil(duration_sec))
+        total_frames = min(total_frames, self.MAX_TTS_MOTION_FRAMES)
+
+        await self._cancel_tts_motion_session(session_id)
+
+        task = asyncio.create_task(
+            self._run_tts_motion_session(
+                ws=ws,
+                session_id=session_id,
+                speech_text=text,
+                context=context,
+                total_frames=total_frames,
+                frame_interval_sec=frame_interval_sec,
+            )
+        )
+        self._tts_motion_tasks[session_id] = task
+        self._client_sessions.setdefault(ws, set()).add(session_id)
+
+        if not ws.closed:
+            await ws.send_json(
+                {
+                    "type": "tts_motion_start",
+                    "sessionId": session_id,
+                    "frameCount": total_frames,
+                    "frameIntervalSec": frame_interval_sec,
+                }
+            )
+        print(f"🎬 启动 TTS 连续动作: session={session_id} frames={total_frames}")
+
+    async def _handle_tts_motion_stop(self, ws: web.WebSocketResponse, msg: dict) -> None:
+        session_id = msg.get("sessionId")
+        if not session_id:
+            await self._send_ws_error(ws, "tts_motion_stop 缺少 sessionId")
+            return
+        await self._cancel_tts_motion_session(str(session_id), notify_done=True, ws=ws)
+
+    async def _run_tts_motion_session(
+        self,
+        ws: web.WebSocketResponse,
+        session_id: str,
+        speech_text: str,
+        context: str,
+        total_frames: int,
+        frame_interval_sec: float,
+    ) -> None:
+        frame_duration_ms = int(frame_interval_sec * 1000)
+        generator = self.server.expression_generator
+
+        try:
+            for frame_index in range(total_frames):
+                if ws.closed:
+                    break
+
+                try:
+                    result = await generator.generate_tts_motion_frame(
+                        speech_text=speech_text,
+                        frame_index=frame_index,
+                        total_frames=total_frames,
+                        context=context,
+                        frame_duration_ms=frame_duration_ms,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    if not ws.closed:
+                        await ws.send_json(
+                            {
+                                "type": "tts_motion_error",
+                                "sessionId": session_id,
+                                "frameIndex": frame_index,
+                                "message": str(e),
+                            }
+                        )
+                    continue
+
+                parameters = self._filter_mouth_params(result.get("parameters", {}))
+                if not parameters:
+                    continue
+
+                if ws.closed:
+                    break
+                await ws.send_json(
+                    {
+                        "type": "tts_motion_frame",
+                        "sessionId": session_id,
+                        "frameIndex": frame_index,
+                        "secondIndex": frame_index,
+                        "totalFrames": total_frames,
+                        "duration": int(result.get("duration", frame_duration_ms)),
+                        "parameters": parameters,
+                        "expression": result.get("expression", ""),
+                        "autoReset": False,
+                    }
+                )
+
+            if not ws.closed:
+                await ws.send_json({"type": "tts_motion_done", "sessionId": session_id})
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._cleanup_tts_motion_session(session_id, ws)
+
+    def _filter_mouth_params(self, parameters: dict) -> dict:
+        if not parameters:
+            return {}
+        filtered = {}
+        for param_id, value in parameters.items():
+            pid = (param_id or "").lower()
+            if any(hint in pid for hint in self.MOUTH_PARAM_HINTS):
+                continue
+            filtered[param_id] = value
+        return filtered
+
+    async def _cancel_tts_motion_session(
+        self,
+        session_id: str,
+        notify_done: bool = False,
+        ws: web.WebSocketResponse = None,
+    ) -> None:
+        task = self._tts_motion_tasks.get(session_id)
+        had_active_task = task is not None and not task.done()
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+
+        self._tts_motion_tasks.pop(session_id, None)
+        for sessions in self._client_sessions.values():
+            sessions.discard(session_id)
+
+        if notify_done and had_active_task and ws and not ws.closed:
+            await ws.send_json({"type": "tts_motion_done", "sessionId": session_id, "reason": "stopped"})
+
+    async def _cancel_client_tts_motion_sessions(self, ws: web.WebSocketResponse) -> None:
+        session_ids = list(self._client_sessions.get(ws, set()))
+        for session_id in session_ids:
+            await self._cancel_tts_motion_session(session_id)
+
+    def _cleanup_tts_motion_session(self, session_id: str, ws: web.WebSocketResponse) -> None:
+        self._tts_motion_tasks.pop(session_id, None)
+        if ws in self._client_sessions:
+            self._client_sessions[ws].discard(session_id)

@@ -28,7 +28,8 @@ window.SoulLinkConfig = {
     ui: {
         showControlPanel: true,
         showPhysicsParams: false,
-        defaultBackground: 0
+        defaultBackground: 0,
+        language: 'auto'
     }
 };
 
@@ -64,6 +65,10 @@ async function loadConfig() {
         
         // 合并到全局配置
         deepMerge(window.SoulLinkConfig, config);
+
+        if (window.I18N && typeof window.I18N.syncLanguageFromConfig === 'function') {
+            window.I18N.syncLanguageFromConfig();
+        }
         
         console.log('✅ 配置已从服务器加载:', window.SoulLinkConfig);
         return window.SoulLinkConfig;

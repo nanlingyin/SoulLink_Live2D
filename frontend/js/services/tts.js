@@ -1,6 +1,9 @@
 /**
- * TTS 语音合成服务
- * 通过后端代理调用 OpenAI 格式 TTS API
+ * TTS service
+ * - fetches audio from backend
+ * - plays audio
+ * - runs lip sync
+ * - coordinates TTS-only continuous motion frames from websocket
  */
 
 class TTSService {
@@ -10,32 +13,45 @@ class TTSService {
         this.isPlaying = false;
         this.onStateChange = null;
         this.onPlayEnd = null;
+
         this.lipSyncInterval = null;
         this.audioContext = null;
         this.analyser = null;
+
+        this.currentAudioUrl = null;
+
+        this.motionSessionId = null;
+        this.motionFrameTimers = [];
+        this.motionStartTime = 0;
+        this.motionCallbacksBound = false;
+        this.idleMotionToken = null;
     }
 
     /**
-     * 初始化 TTS 服务
-     * @param {Object} config - voice.tts 配置
+     * @param {Object} config voice.tts config
      */
     init(config) {
         this.config = config;
 
         if (!config.enabled) {
-            console.log('🔊 TTS 已禁用');
+            console.log('🔰 TTS 已禁用');
             return false;
         }
 
         this.audio = new Audio();
+        this._bindMotionCallbacks();
 
         this.audio.onplay = () => {
             this.isPlaying = true;
+            this.motionStartTime = performance.now();
             this._setState('playing');
-            // TTS 播放期间暂停表情自动重置
+
+            // Pause auto-reset while speech is playing.
             if (window.cancelAutoReset) {
                 window.cancelAutoReset();
             }
+            this._lockIdleMotion();
+            this._setBlinkLock(true);
             this._startLipSync();
         };
 
@@ -43,14 +59,16 @@ class TTSService {
             this.isPlaying = false;
             this._setState('idle');
             this._stopLipSync();
+            this._setBlinkLock(false);
+            this._stopTTSMotionSession(true);
+            this._releaseIdleMotion();
 
-            // TTS 播放完成后，触发表情重置（如果配置了 resetAfterTTS）
             if (this.config.resetAfterTTS !== false) {
                 const animConfig = window.SoulLinkConfig?.animation || {};
                 const resetDelay = animConfig.autoResetDelay || 1500;
                 setTimeout(() => {
                     if (window.resetExpression) {
-                        console.log('🔊 TTS 播放完成，重置表情');
+                        console.log('🔰 TTS 播放完成，重置表情');
                         window.resetExpression();
                     }
                 }, resetDelay);
@@ -62,28 +80,29 @@ class TTSService {
         };
 
         this.audio.onerror = (e) => {
-            console.error('🔊 TTS 播放错误:', e);
+            console.error('🔰 TTS 播放错误:', e);
             this.isPlaying = false;
             this._setState('error');
             this._stopLipSync();
+            this._setBlinkLock(false);
+            this._stopTTSMotionSession(true);
+            this._releaseIdleMotion();
         };
 
-        console.log('🔊 TTS 服务已初始化');
+        console.log('🔰 TTS 服务已初始化');
         return true;
     }
 
     /**
-     * 合成并播放语音
-     * @param {string} text - 要合成的文字
-     * @param {string} voice - 声音选择（可选）
+     * @param {string} text
+     * @param {string|null} voice
      */
     async speak(text, voice = null) {
         if (!this.config || !this.config.enabled) {
-            console.log('🔊 TTS 未启用');
+            console.log('🔰 TTS 未启用');
             return;
         }
 
-        // 如果正在播放，先停止
         if (this.isPlaying) {
             this.stop();
         }
@@ -93,11 +112,9 @@ class TTSService {
         try {
             const response = await fetch('/api/tts', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    text: text,
+                    text,
                     voice: voice || this.config.voice
                 })
             });
@@ -108,19 +125,24 @@ class TTSService {
 
             const audioBlob = await response.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
+            this._replaceAudioSource(audioUrl);
 
-            this.audio.src = audioUrl;
+            await this._waitForMetadata();
+            const durationSec = this._resolveDurationSeconds(text);
+
+            // Lock blink before first streamed frame arrives.
+            this._setBlinkLock(true);
+            await this._startTTSMotionSession(text, durationSec);
             await this.audio.play();
-
         } catch (error) {
-            console.error('🔊 TTS 合成失败:', error);
+            console.error('🔰 TTS 合成失败:', error);
             this._setState('error');
+            this._setBlinkLock(false);
+            this._stopTTSMotionSession(true);
+            this._releaseIdleMotion();
         }
     }
 
-    /**
-     * 停止播放
-     */
     stop() {
         if (this.audio) {
             this.audio.pause();
@@ -129,31 +151,186 @@ class TTSService {
         this.isPlaying = false;
         this._setState('idle');
         this._stopLipSync();
+        this._setBlinkLock(false);
+        this._stopTTSMotionSession(true);
+        this._releaseIdleMotion();
     }
 
-    /**
-     * 暂停播放
-     */
     pause() {
         if (this.audio && this.isPlaying) {
             this.audio.pause();
             this._setState('paused');
             this._stopLipSync();
+            this._setBlinkLock(false);
+            this._stopTTSMotionSession(true);
+            this._releaseIdleMotion();
         }
     }
 
-    /**
-     * 恢复播放
-     */
     resume() {
         if (this.audio && !this.isPlaying) {
             this.audio.play();
         }
     }
 
-    /**
-     * 查找嘴巴参数
-     */
+    _replaceAudioSource(audioUrl) {
+        if (this.currentAudioUrl) {
+            URL.revokeObjectURL(this.currentAudioUrl);
+            this.currentAudioUrl = null;
+        }
+        this.currentAudioUrl = audioUrl;
+        this.audio.src = audioUrl;
+    }
+
+    async _waitForMetadata() {
+        if (this.audio && this.audio.readyState >= 1 && Number.isFinite(this.audio.duration)) {
+            return;
+        }
+
+        await new Promise((resolve) => {
+            if (!this.audio) {
+                resolve();
+                return;
+            }
+
+            let settled = false;
+            const cleanup = () => {
+                if (settled) return;
+                settled = true;
+                this.audio.removeEventListener('loadedmetadata', onReady);
+                this.audio.removeEventListener('error', onReady);
+                clearTimeout(timeoutId);
+            };
+            const onReady = () => {
+                cleanup();
+                resolve();
+            };
+
+            const timeoutId = setTimeout(() => {
+                cleanup();
+                resolve();
+            }, 1500);
+
+            this.audio.addEventListener('loadedmetadata', onReady, { once: true });
+            this.audio.addEventListener('error', onReady, { once: true });
+        });
+    }
+
+    _resolveDurationSeconds(text) {
+        if (this.audio && Number.isFinite(this.audio.duration) && this.audio.duration > 0) {
+            return this.audio.duration;
+        }
+        // Fallback estimation to keep motion flow usable.
+        return Math.max(1, Math.ceil((text || '').length / 10));
+    }
+
+    _bindMotionCallbacks() {
+        if (this.motionCallbacksBound) return;
+        if (!window.wsClient) return;
+
+        window.wsClient.onTTSMotionStart = (msg) => {
+            if (!msg || msg.sessionId !== this.motionSessionId) return;
+            console.log(
+                `🎬 连续动作会话已启动: ${msg.sessionId} frames=${msg.frameCount || '?'}`
+            );
+        };
+
+        window.wsClient.onTTSMotionFrame = (msg) => {
+            if (!msg || msg.sessionId !== this.motionSessionId) return;
+            this._scheduleMotionFrame(msg);
+        };
+
+        window.wsClient.onTTSMotionDone = (msg) => {
+            if (!msg || msg.sessionId !== this.motionSessionId) return;
+            console.log(`🎬 连续动作会话结束: ${msg.sessionId}`);
+            this._clearMotionFrameTimers();
+            this.motionSessionId = null;
+        };
+
+        window.wsClient.onTTSMotionError = (msg) => {
+            if (!msg || msg.sessionId !== this.motionSessionId) return;
+            console.warn('🎬 连续动作帧生成失败:', msg);
+        };
+
+        this.motionCallbacksBound = true;
+    }
+
+    async _startTTSMotionSession(text, durationSec) {
+        if (!window.wsClient || !window.wsClient.connected) return;
+        this._lockIdleMotion();
+
+        const sessionId = `tts-motion-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        this.motionSessionId = sessionId;
+        this.motionStartTime = performance.now();
+        this._clearMotionFrameTimers();
+
+        window.wsClient.startTTSMotion(sessionId, text, durationSec, '');
+    }
+
+    _stopTTSMotionSession(sendStop = true) {
+        this._clearMotionFrameTimers();
+
+        if (sendStop && this.motionSessionId && window.wsClient?.connected) {
+            window.wsClient.stopTTSMotion(this.motionSessionId);
+        }
+
+        this.motionSessionId = null;
+    }
+
+    _clearMotionFrameTimers() {
+        for (const timer of this.motionFrameTimers) {
+            clearTimeout(timer);
+        }
+        this.motionFrameTimers = [];
+    }
+
+    _scheduleMotionFrame(msg) {
+        const secondIndex = Number.isFinite(msg.secondIndex) ? msg.secondIndex : (msg.frameIndex || 0);
+        const targetMs = Math.max(0, secondIndex * 1000);
+        const elapsedMs = this.audio ? this.audio.currentTime * 1000 : 0;
+        const delayMs = Math.max(0, targetMs - elapsedMs);
+
+        const timer = setTimeout(() => {
+            this._applyMotionFrame(msg);
+        }, delayMs);
+
+        this.motionFrameTimers.push(timer);
+    }
+
+    _applyMotionFrame(msg) {
+        if (!this.motionSessionId || msg.sessionId !== this.motionSessionId) return;
+
+        const filteredParams = this._filterMotionParameters(msg.parameters || {});
+        if (Object.keys(filteredParams).length === 0) return;
+
+        const duration = msg.duration || 900;
+        if (window.transitionToExpression) {
+            window.transitionToExpression(filteredParams, duration, null, false);
+            return;
+        }
+
+        // Fallback to direct write.
+        if (window.setParameter) {
+            for (const [paramId, value] of Object.entries(filteredParams)) {
+                window.setParameter(paramId, value);
+            }
+        }
+    }
+
+    _filterMotionParameters(parameters) {
+        const result = {};
+        for (const [paramId, value] of Object.entries(parameters || {})) {
+            if (this._isMouthParam(paramId)) continue;
+            result[paramId] = value;
+        }
+        return result;
+    }
+
+    _isMouthParam(paramId) {
+        const id = String(paramId || '').toLowerCase();
+        return id.includes('mouth') || id.includes('parammouth');
+    }
+
     _findMouthParams() {
         const candidates = {
             open: ['ParamMouthOpenY', 'ParamMouth_OpenY', 'MouthOpenY', 'ParamMouthOpen', 'MouthOpen'],
@@ -163,15 +340,12 @@ class TTSService {
         const availableParams = window.SoulLink?.availableParameters || {};
         const result = { open: null, form: null };
 
-        // 查找开合参数
         for (const id of candidates.open) {
             if (availableParams[id] !== undefined) {
                 result.open = id;
                 break;
             }
         }
-
-        // 查找变形参数
         for (const id of candidates.form) {
             if (availableParams[id] !== undefined) {
                 result.form = id;
@@ -182,94 +356,117 @@ class TTSService {
         return result;
     }
 
-    /**
-     * 开始口型同步
-     * 使用更自然的口型动画
-     */
+    _getParameterInfo(paramId, fallbackMin = 0, fallbackMax = 1, fallbackDefault = 0) {
+        const availableParams = window.SoulLink?.availableParameters || {};
+        const info = availableParams[paramId] || {};
+        const min = Number.isFinite(info.min) ? info.min : fallbackMin;
+        const max = Number.isFinite(info.max) ? info.max : fallbackMax;
+        const defaultValue = Number.isFinite(info.default) ? info.default : fallbackDefault;
+        return { min, max, defaultValue };
+    }
+
     _startLipSync() {
-        // 尝试使用 setParameter 函数（Live2D 控制器）
         const setParam = window.setParameter;
         if (!setParam) {
-            console.warn('🔊 未找到 setParameter 函数，口型同步不可用');
+            console.warn('🔰 未找到 setParameter，口型同步不可用');
             return;
         }
 
-        // 查找正确的参数名
         const mouthParams = this._findMouthParams();
         if (!mouthParams.open) {
-            console.warn('🔊 未找到嘴巴开合参数，尝试使用默认 ParamMouthOpenY');
+            console.warn('🔰 未找到嘴巴开合参数，回退到 ParamMouthOpenY');
             mouthParams.open = 'ParamMouthOpenY';
         }
 
-        console.log(`🔊 启动口型同步: Open=${mouthParams.open}, Form=${mouthParams.form || '无'}`);
+        const openInfo = this._getParameterInfo(mouthParams.open, 0, 1, 0);
+        const openRange = Math.max(0.0001, openInfo.max - openInfo.min);
+        const openFloor = openInfo.min + openRange * 0.32;
+        const openCeil = openInfo.min + openRange * 0.98;
 
-        // 使用正弦波模拟更自然的口型开合
+        const formInfo = mouthParams.form
+            ? this._getParameterInfo(mouthParams.form, -1, 1, 0)
+            : null;
+        const formAmplitude = formInfo
+            ? Math.max((formInfo.max - formInfo.min) * 0.42, 0.2)
+            : 0;
+
+        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
         let time = 0;
-        const baseFrequency = 8; // 基础频率 (Hz)
+        const baseFrequency = 9.5;
 
         this.lipSyncInterval = setInterval(() => {
             time += 0.05;
+            const wave1 = Math.sin(time * baseFrequency) * 0.6 + 0.6;
+            const wave2 = Math.sin(time * baseFrequency * 1.9) * 0.32;
+            const wave3 = Math.sin(time * baseFrequency * 0.73) * 0.2;
+            const jitter = (Math.random() - 0.5) * 0.16;
 
-            // 组合多个正弦波产生更自然的口型
-            const wave1 = Math.sin(time * baseFrequency) * 0.5 + 0.5;
-            const wave2 = Math.sin(time * baseFrequency * 1.5) * 0.3;
-            const wave3 = Math.sin(time * baseFrequency * 0.5) * 0.2;
-
-            // 合成口型值 (0-1)
-            let mouthValue = (wave1 + wave2 + wave3) * 0.6;
-            mouthValue = Math.max(0.1, Math.min(1, mouthValue));
-
-            // 设置嘴巴参数
+            const normalized = clamp(wave1 + wave2 + wave3 + jitter, 0, 1);
+            const mouthValue = openFloor + (openCeil - openFloor) * normalized;
             setParam(mouthParams.open, mouthValue);
 
-            // 可选：轻微的嘴型变化
             if (mouthParams.form) {
-                const formValue = Math.sin(time * 2) * 0.2;
+                const formWave = Math.sin(time * 2.6) + Math.sin(time * 4.9) * 0.25;
+                const formValue = clamp(
+                    formInfo.defaultValue + formWave * formAmplitude,
+                    formInfo.min,
+                    formInfo.max
+                );
                 setParam(mouthParams.form, formValue);
             }
-
-        }, 50); // 20fps
+        }, 50);
     }
 
-    /**
-     * 停止口型同步
-     */
     _stopLipSync() {
         if (this.lipSyncInterval) {
             clearInterval(this.lipSyncInterval);
             this.lipSyncInterval = null;
         }
 
-        // 恢复嘴巴默认状态
         const setParam = window.setParameter;
         if (setParam) {
             const mouthParams = this._findMouthParams();
-            // 即使没找到，也尝试重置默认名
-            setParam(mouthParams.open || 'ParamMouthOpenY', 0);
+            const openParamId = mouthParams.open || 'ParamMouthOpenY';
+            const openInfo = this._getParameterInfo(openParamId, 0, 1, 0);
+            setParam(openParamId, openInfo.defaultValue);
             if (mouthParams.form) {
-                setParam(mouthParams.form, 0);
+                const formInfo = this._getParameterInfo(mouthParams.form, -1, 1, 0);
+                setParam(mouthParams.form, formInfo.defaultValue);
             }
         }
-
-        console.log('🔊 口型同步已停止');
     }
 
-    /**
-     * 更新状态
-     */
+    _setBlinkLock(active) {
+        if (typeof window.setBlinkLock === 'function') {
+            window.setBlinkLock(!!active);
+        }
+    }
+
+    _lockIdleMotion() {
+        if (this.idleMotionToken) return;
+        this.idleMotionToken = `tts-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        if (typeof window.pauseIdleForGeneratedMotion === 'function') {
+            window.pauseIdleForGeneratedMotion(this.idleMotionToken);
+        }
+    }
+
+    _releaseIdleMotion() {
+        if (!this.idleMotionToken) return;
+        if (typeof window.resumeIdleForGeneratedMotion === 'function') {
+            window.resumeIdleForGeneratedMotion(this.idleMotionToken);
+        }
+        this.idleMotionToken = null;
+    }
+
     _setState(state) {
         if (this.onStateChange) {
             this.onStateChange(state);
         }
     }
 
-    /**
-     * 检查是否启用
-     */
     isEnabled() {
         return this.config && this.config.enabled;
     }
 }
 
-// 导出单例
 window.TTSService = new TTSService();

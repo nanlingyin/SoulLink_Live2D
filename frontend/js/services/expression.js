@@ -249,6 +249,19 @@ async function transitionToExpression(targetParams, duration = null, easing = nu
         clearTimeout(autoResetTimer);
         autoResetTimer = null;
     }
+
+    const idleMotionToken = `expr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let idleReleased = false;
+    const releaseIdleMotion = () => {
+        if (idleReleased) return;
+        idleReleased = true;
+        if (typeof window.resumeIdleForGeneratedMotion === 'function') {
+            window.resumeIdleForGeneratedMotion(idleMotionToken);
+        }
+    };
+    if (typeof window.pauseIdleForGeneratedMotion === 'function') {
+        window.pauseIdleForGeneratedMotion(idleMotionToken);
+    }
     
     const animation = { cancelled: false };
     currentAnimation = animation;
@@ -267,6 +280,7 @@ async function transitionToExpression(targetParams, duration = null, easing = nu
     return new Promise((resolve) => {
         function animate(currentTime) {
             if (animation.cancelled) {
+                releaseIdleMotion();
                 resolve(false);
                 return;
             }
@@ -299,6 +313,7 @@ async function transitionToExpression(targetParams, duration = null, easing = nu
                     }, resetDelay);
                 }
                 
+                releaseIdleMotion();
                 resolve(true);
             }
         }

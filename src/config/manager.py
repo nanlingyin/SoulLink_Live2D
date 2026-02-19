@@ -101,7 +101,9 @@ class ConfigManager:
                 self.animation = AnimationConfig(
                     default_duration=anim_data.get('defaultDuration', 1000),
                     easing=anim_data.get('easing', 'easeInOutCubic'),
-                    auto_reset_delay=anim_data.get('autoResetDelay', 1500)
+                    auto_reset_delay=anim_data.get('autoResetDelay', 1500),
+                    eye_open_binary=anim_data.get('eyeOpenBinary', False),
+                    joint_motion_boost=anim_data.get('jointMotionBoost', 1.25)
                 )
 
                 # 加载模型配置
@@ -116,7 +118,8 @@ class ConfigManager:
                 self.ui = UIConfig(
                     show_control_panel=ui_data.get('showControlPanel', True),
                     show_physics_params=ui_data.get('showPhysicsParams', False),
-                    default_background=ui_data.get('defaultBackground', 0)
+                    default_background=ui_data.get('defaultBackground', 0),
+                    language=ui_data.get('language', 'auto')
                 )
 
                 # 加载语音配置
@@ -173,6 +176,10 @@ class ConfigManager:
                     else:
                         print(f"   💬 聊天API: {self.llm.model} @ {self.llm.base_url} (默认)")
                 print(f"   🎬 动画: duration={self.animation.default_duration}ms, easing={self.animation.easing}")
+                print(
+                    f"      eyeOpenBinary={self.animation.eye_open_binary}, "
+                    f"jointMotionBoost={self.animation.joint_motion_boost}"
+                )
                 # 显示语音配置
                 if self.voice.asr:
                     asr_status = "启用" if self.voice.asr.enabled else "禁用"
@@ -210,7 +217,9 @@ class ConfigManager:
             "animation": {
                 "defaultDuration": self.animation.default_duration,
                 "easing": self.animation.easing,
-                "autoResetDelay": self.animation.auto_reset_delay
+                "autoResetDelay": self.animation.auto_reset_delay,
+                "eyeOpenBinary": self.animation.eye_open_binary,
+                "jointMotionBoost": self.animation.joint_motion_boost
             },
             "model": {
                 "directory": self.model.directory,
@@ -219,7 +228,8 @@ class ConfigManager:
             "ui": {
                 "showControlPanel": self.ui.show_control_panel,
                 "showPhysicsParams": self.ui.show_physics_params,
-                "defaultBackground": self.ui.default_background
+                "defaultBackground": self.ui.default_background,
+                "language": self.ui.language
             },
             "voice": {
                 "asr": {
