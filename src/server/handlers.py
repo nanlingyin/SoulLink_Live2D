@@ -162,6 +162,11 @@ class WebSocketHandler:
             print(f"✅ 请求处理完成 | 总耗时: {total_elapsed:.0f}ms")
             if isinstance(expression_result, dict):
                 print(f"   🎁 表情: {expression_result.get('expression', '未知')}")
+                params = expression_result.get('parameters', {})
+                if params:
+                    print(f"   📊 表情参数:")
+                    for param_id, value in params.items():
+                        print(f"      {param_id}: {value}")
             print(f"{'=' * 50}\n")
         except Exception as e:
             print(f"❌ 聊天处理错误: {e}")
@@ -247,36 +252,52 @@ class WebSocketHandler:
         generator = self.server.expression_generator
 
         try:
+            # 批量并发生成所有帧
+            print(f"🎬 [TTS连续动作] 开始批量生成 {total_frames} 帧...")
+            generation_start = time.time()
+
+            # 创建所有生成任务
+            generation_tasks = []
             for frame_index in range(total_frames):
+                task = generator.generate_tts_motion_frame(
+                    speech_text=speech_text,
+                    frame_index=frame_index,
+                    total_frames=total_frames,
+                    context=context,
+                    frame_duration_ms=frame_duration_ms,
+                )
+                generation_tasks.append(task)
+
+            # 并发执行所有生成任务
+            results = await asyncio.gather(*generation_tasks, return_exceptions=True)
+            generation_elapsed = (time.time() - generation_start) * 1000
+            print(f"🎬 [TTS连续动作] 批量生成完成 ⏱️ {generation_elapsed:.0f}ms")
+
+            # 按顺序发送所有帧
+            successful_frames = 0
+            for frame_index, result in enumerate(results):
                 if ws.closed:
                     break
 
-                try:
-                    result = await generator.generate_tts_motion_frame(
-                        speech_text=speech_text,
-                        frame_index=frame_index,
-                        total_frames=total_frames,
-                        context=context,
-                        frame_duration_ms=frame_duration_ms,
-                    )
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
+                # 处理生成错误
+                if isinstance(result, Exception):
                     if not ws.closed:
                         await ws.send_json(
                             {
                                 "type": "tts_motion_error",
                                 "sessionId": session_id,
                                 "frameIndex": frame_index,
-                                "message": str(e),
+                                "message": str(result),
                             }
                         )
                     continue
 
+                # 过滤嘴部参数
                 parameters = self._filter_mouth_params(result.get("parameters", {}))
                 if not parameters:
                     continue
 
+                # 发送帧数据
                 if ws.closed:
                     break
                 await ws.send_json(
@@ -292,6 +313,9 @@ class WebSocketHandler:
                         "autoReset": False,
                     }
                 )
+                successful_frames += 1
+
+            print(f"🎬 [TTS连续动作] 发送完成: {successful_frames}/{total_frames} 帧")
 
             if not ws.closed:
                 await ws.send_json({"type": "tts_motion_done", "sessionId": session_id})

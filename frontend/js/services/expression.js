@@ -235,8 +235,13 @@ let currentAnimation = null;
 let autoResetTimer = null;
 
 async function transitionToExpression(targetParams, duration = null, easing = null, autoReset = false, resetDelay = null) {
+    console.log('🎭 transitionToExpression 被调用');
+    console.log('📊 目标参数:', targetParams);
+    console.log('📋 可用参数数量:', Object.keys(AVAILABLE_PARAMETERS).length);
+    console.log('📋 可用参数列表:', Object.keys(AVAILABLE_PARAMETERS).slice(0, 10));
+
     const animConfig = getAnimationConfig();
-    
+
     // 使用传入值或配置文件中的默认值
     duration = duration ?? animConfig.defaultDuration;
     easing = easing ?? animConfig.easing;
@@ -450,19 +455,25 @@ async function speakWithEmotion(dialogue, emotion = '', autoReset = true) {
 }
 
 async function resetToDefault(duration = null) {
+    // 取消任何待执行的自动重置，防止重复重置
+    if (autoResetTimer) {
+        clearTimeout(autoResetTimer);
+        autoResetTimer = null;
+    }
+
     const animConfig = getAnimationConfig();
     duration = duration ?? animConfig.defaultDuration;
-    
+
     const defaultParams = {};
     for (const [paramId, info] of Object.entries(AVAILABLE_PARAMETERS)) {
         defaultParams[paramId] = info.default;
     }
-    
+
     if (window.clearAllOverrides) {
         window.clearAllOverrides();
     }
-    
-    return transitionToExpression(defaultParams, duration);
+
+    return transitionToExpression(defaultParams, duration, null, false);
 }
 
 // ============ 本地预设表情 ============

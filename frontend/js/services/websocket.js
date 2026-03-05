@@ -151,17 +151,32 @@ class SoulLinkClient {
                 case 'chat_response':
                     // 聊天回复（包含回复文本和表情）
                     console.log('💬 收到聊天回复:', msg);
+
+                    // 先取消之前的自动重置，防止冲突
+                    if (window.cancelAutoReset) {
+                        window.cancelAutoReset();
+                    }
+
                     if (window.handleChatResponse) {
                         window.handleChatResponse(msg);
                     }
+
                     // 同时应用表情
+                    console.log('🔍 检查表情应用条件:');
+                    console.log('  - msg.parameters 存在:', !!msg.parameters);
+                    console.log('  - msg.parameters 内容:', msg.parameters);
+                    console.log('  - window.transitionToExpression 存在:', typeof window.transitionToExpression);
+
                     if (msg.parameters && window.transitionToExpression) {
+                        console.log('✅ 准备调用 transitionToExpression');
                         window.transitionToExpression(
                             msg.parameters,
                             msg.duration || 800,
                             null,
                             msg.autoReset || false
                         );
+                    } else {
+                        console.warn('❌ 表情应用条件不满足');
                     }
                     break;
                 
