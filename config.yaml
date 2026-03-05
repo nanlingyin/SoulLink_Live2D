@@ -1,91 +1,162 @@
-# SoulLink_Live2D 默认配置
-# 所有配置统一在此文件维护
+# SoulLink_Live2D 配置文件示例
+# 请复制此文件为 config.yaml 并填入您的 API Key
 
 # 服务器配置
 server:
   host: "0.0.0.0"
   port: 3000
+  # 模型扫描目录（只扫描 l2d 目录）
   modelDirs:
     - "./l2d"
 
 # LLM 配置
 llm:
-  # "local" 或 "api"
+  # 表情生成模式: "local" (本地模型) 或 "api" (远程API)
   mode: "api"
 
-  # 本地模型配置（mode: local 时生效）
+  # ========== 本地模型配置 (mode: local) ==========
   local:
+    # 基础模型路径
     baseModelPath: "./ct2model/models/qwen2.5-1.5b-instruct"
+    # LoRA 权重路径
     loraModelPath: "./ct2model/output/l2d-motion-lora/final"
+    # 设备: auto / cuda / cpu
     device: "auto"
+    # 推理参数
     temperature: 0.1
     maxNewTokens: 512
 
-  # 远程 API 配置（mode: api 时生效）
+  # ========== 远程 API 配置 (mode: api) ==========
   api:
-    provider: "openai"
-    apiKey: ""
+    # API 提供商: openai, deepseek, claude, ollama, custom
+    provider: openai
+
+    # API Key (必填)
+    apiKey: "sk-your-api-key-here"
+
+    # API 基础 URL
+    # OpenAI: https://api.openai.com/v1
+    # DeepSeek: https://api.deepseek.com/v1
+    # SiliconFlow: https://api.siliconflow.cn/v1
+    # Ollama: http://localhost:11434/v1
     baseUrl: "https://api.openai.com/v1"
+
+    # 模型名称
+    # OpenAI: gpt-4o-mini, gpt-4o
+    # DeepSeek: deepseek-chat
+    # SiliconFlow: deepseek-ai/DeepSeek-V3
+    # Ollama: llama2, mistral, etc.
     model: "gpt-4o-mini"
-    temperature: 0.7
-    maxTokens: 500
 
-    # 可选：表情生成专用配置（不填时继承 api 默认值）
-    # expression:
-    #   provider: "openai"
-    #   apiKey: ""
-    #   baseUrl: "https://api.openai.com/v1"
-    #   model: "gpt-4o-mini"
-    #   temperature: 0.7
-    #   maxTokens: 500
+    # 生成参数
+    temperature: 0.1
+    maxTokens: 800
+    # 出现一些报错的时候可以适当拉高 maxTokens
 
-    # 可选：聊天专用配置（不填时继承 api 默认值）
-    # chat:
-    #   provider: "openai"
-    #   apiKey: ""
-    #   baseUrl: "https://api.openai.com/v1"
-    #   model: "gpt-4o-mini"
-    #   temperature: 0.7
-    #   maxTokens: 500
+    # ========== 表情生成专用配置 (可选) ==========
+    # 配置后可以为表情生成使用不同的模型/API
+    expression:
+      provider: openai
+      apiKey: "sk-your-expression-api-key-here"  # 不填则继承 api.apiKey
+      baseUrl: "https://api.openai.com/v1"  # 不填则继承 api.baseUrl
+      model: "gpt-4o-mini"  # 推荐使用轻量模型，响应快
+      temperature: 0.1
+      maxTokens: 2000
+
+    # ========== 聊天对话专用配置 (可选) ==========
+    # 如果不配置，将使用上面的 api 配置
+    # 配置后可以为聊天对话使用不同的模型/API
+    chat:
+      provider: openai
+      apiKey: "sk-your-chat-api-key-here"  # 不填则继承 api.apiKey
+      baseUrl: "https://api.openai.com/v1"  # 不填则继承 api.baseUrl
+      model: "gpt-4o"  # 可以使用更强大的模型获得更好的对话质量
+      temperature: 0.5
+      maxTokens: 5000
 
 # 动画配置
 animation:
+  # 默认表情过渡时间 (毫秒)
   defaultDuration: 1000
+
+  # 缓动函数: linear, easeInQuad, easeOutQuad, easeInOutQuad,
+  #          easeInCubic, easeOutCubic, easeInOutCubic, easeInOutSine
   easing: "easeInOutCubic"
-  autoResetDelay: 1500
-  # 眼部开合参数是否二值化（只使用 min/max）
-  eyeOpenBinary: false
-  # 头部/手部/身体等关节参数增强倍率
-  jointMotionBoost: 1.25
+
+  # 自动重置延迟 (毫秒) - LLM生成的表情在此时间后自动恢复默认
+  # 建议设置为 2-6 秒，给用户足够时间观察表情（包含 1 秒过渡时间）
+  autoResetDelay: 3000
+
+  # 眼睛开合二值化 - true: 眼睛只能完全睁开或闭合, false: 允许中间值
+  eyeOpenBinary: true
+
+  # 关节动作增强系数 - 提高头部、身体、手部等关节参数的动作幅度
+  jointMotionBoost: 1.35
+
+  # ========== 分层参数系统配置 ==========
+  # 启用分层参数管理系统 - 解决 TTS 期间动画冲突问题
+  layeredParameters: true
+
+  # TTS 播放期间启用口型同步
+  ttsMotionKeepLipSync: true
 
 # 模型配置
 model:
+  # 模型目录路径 (相对于 index.html)
   directory: "./l2d"
+
+  # 默认缩放比例
   defaultScale: 0.8
 
 # 界面配置
 ui:
+  # 是否显示控制面板
   showControlPanel: true
+
+  # 是否显示物理参数 (头发、裙子等)
   showPhysicsParams: false
+
+  # 默认背景 (索引，0-6)
   defaultBackground: 0
-  # auto / zh / en
+
+  # 界面语言: "auto" (自动检测), "zh-CN" (简体中文), "en-US" (英语)
   language: "auto"
 
-# 语音配置（ASR + TTS）
+# 语音配置 (ASR 语音识别 + TTS 语音合成)
 voice:
+  # ========== ASR 语音识别配置 ==========
   asr:
+    # 是否启用语音识别
     enabled: true
+    # 识别模式: "browser" (浏览器 Web Speech API) 或 "local" (本地 Whisper)
     mode: "browser"
+    # 语言代码
     language: "zh-CN"
+    # 识别完成后是否自动发送消息给 AI
     autoSend: true
+    # 本地 Whisper 模式配置 (mode: local 时生效)
     local:
+      # 模型存放路径
       modelPath: "./models/whisper"
+      # 模型大小: tiny/base/small/medium/large
+      # 运行 python scripts/download_asr_model.py 下载模型
       modelSize: "base"
 
+  # ========== TTS 语音合成配置 ==========
   tts:
-    enabled: false
+    # 是否启用语音合成 (AI 回复时播放语音)
+    enabled: true
+    # TTS API 地址 (OpenAI 格式)
     baseUrl: "https://api.openai.com/v1"
-    apiKey: ""
+    # API Key
+    apiKey: "sk-your-tts-api-key-here"
+    # 模型名称
+    # OpenAI: tts-1, tts-1-hd
+    # SiliconFlow: FunAudioLLM/CosyVoice2-0.5B
     model: "tts-1"
+    # 声音选择
+    # OpenAI: alloy, echo, fable, onyx, nova, shimmer
+    # SiliconFlow CosyVoice: 需要指定具体的声音 ID
     voice: "alloy"
+    # 语速 (0.25 - 4.0)
     speed: 1.0
