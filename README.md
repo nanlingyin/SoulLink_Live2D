@@ -89,14 +89,24 @@ l2d/
 │   └── motions/
 ```
 
-5. **启动服务器**
+5. **启动后端服务**
 ```bash
 python server.py
 ```
 
-6. **打开浏览器**
+6. **启动 Vue 前端（前后端分离）**
 
-访问 http://localhost:3000
+```bash
+cd frontend-vue
+npm install
+npm run dev
+```
+
+7. **打开浏览器**
+
+访问 http://localhost:5173
+
+后端 API 默认运行在 http://localhost:3000（健康检查：`/api/health`）。
 
 ## 📖 使用方法
 
@@ -186,22 +196,15 @@ SoulLink_Live2D/
 ├── README.md                   # 项目说明文档
 ├── start.bat                   # Windows 启动脚本
 │
-├── frontend/                   # 前端页面文件夹
-│   ├── index.html              # 前端主页面
-│   ├── css/
-│   │   └── styles.css          # 样式文件
-│   └── js/
-│       ├── components/         # 前端组件
-│       ├── live2d/             # Live2D 集成
-│       ├── services/           # 服务模块
-│       └── utils/              # 工具函数
+├── frontend-vue/               # Vue 3 前端（独立部署）
+│   ├── src/                    # Vue 组件和样式
+│   ├── public/legacy/js/       # 复用的原有 Live2D/语音/表情核心脚本
+│   ├── package.json            # 前端依赖
+│   └── vite.config.js          # 开发代理配置
 │
-├── js/                         # 核心 JavaScript 文件
-│   ├── main.js                 # Live2D 加载与渲染
-│   ├── llm-expression.js       # LLM 表情控制核心
-│   ├── chat.js                 # 聊天模块
-│   ├── websocket-client.js     # WebSocket 客户端
-│   └── config-loader.js        # 配置加载器
+├── frontend/                   # 历史前端资源（兼容保留）
+│   ├── css/
+│   └── js/
 │
 ├── src/                        # Python 源代码
 │   ├── __init__.py
@@ -234,10 +237,9 @@ SoulLink_Live2D/
 | 目录 | 说明 |
 |------|------|
 | `l2d/` | 默认 Live2D 模型，启动时自动加载 |
-| `models/` | 其他可用的 Live2D 模型集合，可自由切换 |
 | `src/` | Python 核心代码，包括 LLM 集成、表情生成等 |
-| `frontend/` | 新版前端代码（组件化架构） |
-| `core/` | 旧版核心实现，保留作参考 |
+| `frontend-vue/` | Vue 前端项目，前后端分离模式入口 |
+| `frontend/` | 旧版前端资源，作为 legacy 脚本来源保留 |
 | `docs/` | 项目文档和原理说明 |
 | `模型压缩包合集/` | 模型压缩包存储（`.gitignore` 忽略） |
 

@@ -14,8 +14,9 @@ from ..config import ConfigManager
 def setup_routes(app: web.Application, config: ConfigManager, ws_handler) -> None:
     """设置所有路由"""
 
-    # 根路由 - 提供 index.html
-    app.router.add_get('/', serve_index)
+    # API 根路由与健康检查
+    app.router.add_get('/', serve_api_root)
+    app.router.add_get('/api/health', serve_health)
 
     # WebSocket
     app.router.add_get('/ws', ws_handler.handle_connection)
@@ -48,19 +49,6 @@ def _setup_static_routes(app: web.Application, config: ConfigManager) -> None:
             app.router.add_static(f'/{dir_name}', str(dir_path))
             print(f"📂 静态文件路由: /{dir_name} -> {dir_path}")
 
-    # 前端文件 (新结构)
-    frontend_path = Path('./frontend').resolve()
-    if frontend_path.exists():
-        app.router.add_static('/js', str(frontend_path / 'js'))
-        app.router.add_static('/css', str(frontend_path / 'css'))
-        print(f"📂 前端路由: /js, /css -> {frontend_path}")
-    else:
-        # 兼容旧结构
-        js_path = Path('./js').resolve()
-        if js_path.exists():
-            app.router.add_static('/js', str(js_path))
-            print(f"📂 静态文件路由: /js -> {js_path}")
-
     # 静态资源目录 (新结构)
     static_path = Path('./static').resolve()
     if static_path.exists():
@@ -88,14 +76,28 @@ def _setup_cors(app: web.Application) -> None:
         cors.add(route)
 
 
-async def serve_index(request: web.Request) -> web.Response:
-    """提供 index.html 首页"""
-    # 优先使用新结构
-    frontend_index = Path('./frontend/index.html')
-    if frontend_index.exists():
-        return web.FileResponse(str(frontend_index))
-    # 兼容旧结构
-    return web.FileResponse('./index.html')
+async def serve_api_root(request: web.Request) -> web.Response:
+    """API 服务根路由。"""
+    return web.json_response(
+        {
+            "service": "SoulLink_Live2D API",
+            "status": "ok",
+            "frontend": "Use the standalone Vue frontend project (frontend-vue).",
+            "endpoints": {
+                "health": "/api/health",
+                "config": "/api/config",
+                "models": "/api/models",
+                "tts": "/api/tts",
+                "asr": "/api/asr",
+                "websocket": "/ws",
+            },
+        }
+    )
+
+
+async def serve_health(request: web.Request) -> web.Response:
+    """健康检查接口。"""
+    return web.json_response({"status": "ok"})
 
 
 def create_get_models_handler(server):

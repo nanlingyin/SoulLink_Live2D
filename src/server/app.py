@@ -131,7 +131,8 @@ class SoulLinkServer:
 ╔════════════════════════════════════════════════════════════╗
 ║           SoulLink_Live2D Server 已启动                    ║
 ╠════════════════════════════════════════════════════════════╣
-║  🌐 Web 界面:  http://localhost:{self.config.server.port:<24}║
+║  🌐 API 服务:  http://localhost:{self.config.server.port:<24}║
+║  💚 健康检查:  http://localhost:{self.config.server.port}/api/health{' ' * 14}║
 ║  🔌 WebSocket: ws://localhost:{self.config.server.port}/ws{' ' * 21}║
 ║  📁 模型目录:  {str(self.config.server.model_dirs[0]):<31}║
 ║  🎭 已发现模型: {len(self.scanner.models):<30}║
@@ -140,7 +141,7 @@ class SoulLinkServer:
 
 💡 提示:
    - 将 Live2D 模型放入模型目录，服务器会自动发现
-   - 在浏览器控制台使用 SoulLink.chat("你好") 测试
+   - 前端请使用 frontend-vue 独立项目启动（例如 npm run dev）
    - 按 Ctrl+C 停止服务器
    - 切换模式: 修改 config.yaml 中 llm.mode 为 "local" 或 "api"
         """)

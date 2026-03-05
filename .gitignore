@@ -31,4 +31,12 @@ CLAUDE.md
 # 其他常见忽略文件
 .DS_Store
 *.log
+logs/
 .env
+# 开发个人配置备份
+confighide.txt
+
+# Node / Vue
+node_modules/
+frontend-vue/node_modules/
+frontend-vue/dist/
