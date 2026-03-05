@@ -25,6 +25,9 @@ class TTSService {
         this.motionStartTime = 0;
         this.motionCallbacksBound = false;
         this.idleMotionToken = null;
+
+        // 预生成的连续动作帧
+        this.preGeneratedMotionFrames = null;
     }
 
     /**
@@ -255,7 +258,34 @@ class TTSService {
         this.motionCallbacksBound = true;
     }
 
+    /**
+     * 设置预生成的连续动作帧
+     * @param {Array} frames - 预生成的动作帧数组
+     */
+    setPreGeneratedMotionFrames(frames) {
+        this.preGeneratedMotionFrames = frames;
+        console.log('🎬 已缓存预生成的连续动作帧:', frames.length);
+    }
+
     async _startTTSMotionSession(text, durationSec) {
+        // 如果有预生成的动作帧，直接使用它们
+        if (this.preGeneratedMotionFrames && this.preGeneratedMotionFrames.length > 0) {
+            console.log('🎬 使用预生成的连续动作帧:', this.preGeneratedMotionFrames.length);
+            this._lockIdleMotion();
+            this.motionStartTime = performance.now();
+            this._clearMotionFrameTimers();
+
+            // 直接调度所有预生成的帧
+            for (const frame of this.preGeneratedMotionFrames) {
+                this._scheduleMotionFrame(frame);
+            }
+
+            // 清除缓存
+            this.preGeneratedMotionFrames = null;
+            return;
+        }
+
+        // 否则使用原来的 WebSocket 流式生成方式
         if (!window.wsClient || !window.wsClient.connected) return;
         this._lockIdleMotion();
 

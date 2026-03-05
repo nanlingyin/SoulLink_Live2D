@@ -134,6 +134,7 @@ class WebSocketHandler:
         context = msg.get("context", "")
         history = msg.get("history", [])
         auto_reset = msg.get("autoReset", True)
+        prepare_tts_motion = msg.get("prepareTtsMotion", False)  # 是否预生成 TTS 连续动作
 
         try:
             total_start_time = time.time()
@@ -156,6 +157,30 @@ class WebSocketHandler:
                 "duration": expression_result.get("duration", 800) if isinstance(expression_result, dict) else 800,
                 "autoReset": auto_reset,
             }
+
+            # 如果启用了 TTS 且需要预生成连续动作
+            if prepare_tts_motion and self.server.tts_generator and self.server.tts_generator.is_enabled():
+                print(f"🎬 预生成 TTS 连续动作...")
+                motion_start = time.time()
+
+                # 估算语音时长（简单估算：每个字符约 0.15 秒）
+                estimated_duration = len(chat_reply) * 0.15
+                total_frames = max(1, min(int(estimated_duration), self.MAX_TTS_MOTION_FRAMES))
+
+                # 批量生成所有动作帧
+                motion_frames = await self._generate_tts_motion_frames(
+                    speech_text=chat_reply,
+                    total_frames=total_frames,
+                    context=context
+                )
+
+                motion_elapsed = (time.time() - motion_start) * 1000
+                print(f"🎬 预生成完成: {len(motion_frames)}/{total_frames} 帧 ⏱️ {motion_elapsed:.0f}ms")
+
+                # 将动作帧添加到响应中
+                response["ttsMotionFrames"] = motion_frames
+                response["ttsMotionReady"] = True
+
             await ws.send_json(response)
 
             print(f"{'=' * 50}")
@@ -323,6 +348,52 @@ class WebSocketHandler:
             raise
         finally:
             self._cleanup_tts_motion_session(session_id, ws)
+
+    async def _generate_tts_motion_frames(
+        self,
+        speech_text: str,
+        total_frames: int,
+        context: str = "",
+    ) -> list:
+        """批量生成所有 TTS 连续动作帧"""
+        frame_duration_ms = 1000
+        generator = self.server.expression_generator
+
+        # 创建所有生成任务
+        generation_tasks = []
+        for frame_index in range(total_frames):
+            task = generator.generate_tts_motion_frame(
+                speech_text=speech_text,
+                frame_index=frame_index,
+                total_frames=total_frames,
+                context=context,
+                frame_duration_ms=frame_duration_ms,
+            )
+            generation_tasks.append(task)
+
+        # 并发执行所有生成任务
+        results = await asyncio.gather(*generation_tasks, return_exceptions=True)
+
+        # 处理结果，过滤嘴部参数
+        motion_frames = []
+        for frame_index, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"⚠️ 帧 {frame_index} 生成失败: {result}")
+                continue
+
+            parameters = self._filter_mouth_params(result.get("parameters", {}))
+            if not parameters:
+                continue
+
+            motion_frames.append({
+                "frameIndex": frame_index,
+                "secondIndex": frame_index,
+                "duration": int(result.get("duration", frame_duration_ms)),
+                "parameters": parameters,
+                "expression": result.get("expression", ""),
+            })
+
+        return motion_frames
 
     def _filter_mouth_params(self, parameters: dict) -> dict:
         if not parameters:

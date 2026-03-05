@@ -197,11 +197,15 @@ async function sendChatMessage() {
 
     try {
         if (typeof wsClient !== 'undefined' && wsClient.connected) {
+            // 检查是否启用了 TTS
+            const ttsEnabled = window.TTSService && window.TTSService.isEnabled();
+
             wsClient.send({
                 type: 'chat_with_reply',
                 message,
                 history: chatHistory.slice(-10),
-                autoReset: true
+                autoReset: true,
+                prepareTtsMotion: ttsEnabled  // 如果启用 TTS，预生成连续动作
             });
         } else {
             removeTypingIndicator();
@@ -230,6 +234,12 @@ function handleChatResponse(data) {
     if (data.reply) {
         addMessageToUI(data.reply, 'assistant');
         chatHistory.push({ role: 'assistant', content: data.reply });
+
+        // 如果有预生成的 TTS 连续动作帧，先缓存它们
+        if (data.ttsMotionReady && data.ttsMotionFrames && window.TTSService) {
+            console.log('🎬 收到预生成的连续动作帧:', data.ttsMotionFrames.length);
+            window.TTSService.setPreGeneratedMotionFrames(data.ttsMotionFrames);
+        }
 
         if (window.TTSService && window.TTSService.isEnabled()) {
             window.TTSService.speak(data.reply);
