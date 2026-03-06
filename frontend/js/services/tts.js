@@ -271,12 +271,20 @@ class TTSService {
         // 如果有预生成的动作帧，直接使用它们
         if (this.preGeneratedMotionFrames && this.preGeneratedMotionFrames.length > 0) {
             console.log('🎬 使用预生成的连续动作帧:', this.preGeneratedMotionFrames.length);
+            console.log('🎬 预生成帧内容:', this.preGeneratedMotionFrames);
             this._lockIdleMotion();
             this.motionStartTime = performance.now();
             this._clearMotionFrameTimers();
 
-            // 直接调度所有预生成的帧
+            // 生成一个 session ID 用于预生成帧
+            const sessionId = `tts-motion-pregen-${Date.now()}`;
+            this.motionSessionId = sessionId;
+            console.log('🎬 设置 sessionId:', sessionId);
+
+            // 为每个预生成的帧添加 sessionId
             for (const frame of this.preGeneratedMotionFrames) {
+                frame.sessionId = sessionId;
+                console.log('🎬 准备调度帧:', frame);
                 this._scheduleMotionFrame(frame);
             }
 
@@ -320,6 +328,15 @@ class TTSService {
         const elapsedMs = this.audio ? this.audio.currentTime * 1000 : 0;
         const delayMs = Math.max(0, targetMs - elapsedMs);
 
+        console.log('🎬 调度动作帧:', {
+            frameIndex: msg.frameIndex,
+            secondIndex: secondIndex,
+            targetMs: targetMs,
+            elapsedMs: elapsedMs,
+            delayMs: delayMs,
+            audioCurrentTime: this.audio ? this.audio.currentTime : 'no audio'
+        });
+
         const timer = setTimeout(() => {
             this._applyMotionFrame(msg);
         }, delayMs);
@@ -328,10 +345,25 @@ class TTSService {
     }
 
     _applyMotionFrame(msg) {
-        if (!this.motionSessionId || msg.sessionId !== this.motionSessionId) return;
+        if (!this.motionSessionId || msg.sessionId !== this.motionSessionId) {
+            console.warn('🎬 帧被拒绝: sessionId 不匹配', {
+                expected: this.motionSessionId,
+                received: msg.sessionId
+            });
+            return;
+        }
 
         const filteredParams = this._filterMotionParameters(msg.parameters || {});
-        if (Object.keys(filteredParams).length === 0) return;
+        if (Object.keys(filteredParams).length === 0) {
+            console.warn('🎬 帧被拒绝: 过滤后参数为空', msg.parameters);
+            return;
+        }
+
+        console.log('🎬 应用动作帧:', {
+            frameIndex: msg.frameIndex,
+            parameters: filteredParams,
+            duration: msg.duration
+        });
 
         const duration = msg.duration || 900;
         if (window.transitionToExpression) {
@@ -350,15 +382,17 @@ class TTSService {
     _filterMotionParameters(parameters) {
         const result = {};
         for (const [paramId, value] of Object.entries(parameters || {})) {
-            if (this._isMouthParam(paramId)) continue;
+            if (this._isMouthOpenParam(paramId)) continue;
             result[paramId] = value;
         }
         return result;
     }
 
-    _isMouthParam(paramId) {
+    _isMouthOpenParam(paramId) {
+        // 只过滤嘴巴开合参数，保留 MouthForm 等其他嘴型参数供 LLM 控制
         const id = String(paramId || '').toLowerCase();
-        return id.includes('mouth') || id.includes('parammouth');
+        return id.includes('mouthopen') || id.includes('mouth_open') ||
+               id.includes('openmouth') || id.includes('open_mouth');
     }
 
     _findMouthParams() {
@@ -408,17 +442,16 @@ class TTSService {
             mouthParams.open = 'ParamMouthOpenY';
         }
 
+        // 获取口型同步配置
+        const lipSyncConfig = this.config.lipSync || {};
+        const mouthOpenIntensity = Math.max(0, Math.min(1, lipSyncConfig.mouthOpenIntensity || 1.0));
+
         const openInfo = this._getParameterInfo(mouthParams.open, 0, 1, 0);
         const openRange = Math.max(0.0001, openInfo.max - openInfo.min);
-        const openFloor = openInfo.min + openRange * 0.32;
-        const openCeil = openInfo.min + openRange * 0.98;
 
-        const formInfo = mouthParams.form
-            ? this._getParameterInfo(mouthParams.form, -1, 1, 0)
-            : null;
-        const formAmplitude = formInfo
-            ? Math.max((formInfo.max - formInfo.min) * 0.42, 0.2)
-            : 0;
+        // 应用开合幅度系数
+        const openFloor = openInfo.min + openRange * 0.32 * mouthOpenIntensity;
+        const openCeil = openInfo.min + openRange * 0.98 * mouthOpenIntensity;
 
         const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
         let time = 0;
@@ -435,15 +468,7 @@ class TTSService {
             const mouthValue = openFloor + (openCeil - openFloor) * normalized;
             setParam(mouthParams.open, mouthValue);
 
-            if (mouthParams.form) {
-                const formWave = Math.sin(time * 2.6) + Math.sin(time * 4.9) * 0.25;
-                const formValue = clamp(
-                    formInfo.defaultValue + formWave * formAmplitude,
-                    formInfo.min,
-                    formInfo.max
-                );
-                setParam(mouthParams.form, formValue);
-            }
+            // 不再控制 ParamMouthForm，让 LLM 生成的表情参数控制微笑等嘴型
         }, 50);
     }
 

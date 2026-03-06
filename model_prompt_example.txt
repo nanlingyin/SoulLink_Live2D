@@ -1,0 +1,23 @@
+# 模型专属 Prompt 示例
+# 将此文件重命名为 model_prompt.txt 并放在模型目录下（与 .model3.json 同级）
+
+## 针对开关型参数的示例：
+
+对于以下参数，请严格输出 0 或 1，不要输出中间值：
+- ParamHairFront: 0=关闭前发, 1=显示前发
+- ParamGlasses: 0=不戴眼镜, 1=戴眼镜
+- ParamAccessory: 0=隐藏饰品, 1=显示饰品
+
+## 针对特殊参数范围的示例：
+
+- ParamSpecialEye: 此参数范围为 0-3，每个整数代表不同的眼睛样式，请只输出整数值（0, 1, 2, 或 3）
+- ParamMouthType: 范围 0-2，0=普通嘴型, 1=微笑嘴型, 2=张嘴嘴型，请只输出整数
+
+## 针对模型特性的说明：
+
+此模型的头部转动范围较小，ParamAngleX 和 ParamAngleY 建议控制在 -10 到 10 之间，避免过大的转动角度。
+
+## 表情组合建议：
+
+- 开心表情：ParamMouthForm=0.8, ParamEyeLOpen=1.0, ParamEyeROpen=1.0, ParamBrowLY=0.3, ParamBrowRY=0.3
+- 害羞表情：ParamCheek=0.8, ParamEyeLOpen=0.6, ParamEyeROpen=0.6, ParamMouthForm=0.3

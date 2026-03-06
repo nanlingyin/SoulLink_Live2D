@@ -98,6 +98,13 @@ class WebSocketHandler:
         if model_name in self.server.scanner.models:
             self.server.current_model = model_name
             model = self.server.scanner.models[model_name]
+
+            # 更新表情生成器的模型专属 prompt
+            if hasattr(self.server.expression_generator, 'custom_prompt'):
+                self.server.expression_generator.custom_prompt = model.custom_prompt or ""
+                if model.custom_prompt:
+                    print(f"   📝 已加载模型专属 prompt")
+
             await self.server.broadcast({"type": "load_model", "model": asdict(model)})
             print(f"📝 加载模型: {model_name}")
             return
@@ -129,7 +136,7 @@ class WebSocketHandler:
             await self._send_ws_error(ws, str(e))
 
     async def _handle_chat_with_reply(self, ws: web.WebSocketResponse, msg: dict) -> None:
-        """Handle full chat request: reply + one-shot expression in parallel."""
+        """Handle full chat request: reply + expression (one-shot or continuous motion)."""
         text = msg.get("message", "")
         context = msg.get("context", "")
         history = msg.get("history", [])
@@ -141,25 +148,24 @@ class WebSocketHandler:
             print(f"\n{'=' * 50}")
             print(f"📠 收到聊天请求: {text[:50]}...")
 
-            chat_task = self.server.chat_generator.generate(text, history)
-            expression_task = self.server.expression_generator.generate(text, context)
-            results = await asyncio.gather(chat_task, expression_task, return_exceptions=True)
+            # 判断是否启用 TTS 连续动作模式
+            tts_enabled = prepare_tts_motion and self.server.tts_generator and self.server.tts_generator.is_enabled()
 
-            chat_reply = results[0] if not isinstance(results[0], Exception) else f"聊天生成失败: {results[0]}"
-            expression_result = results[1] if not isinstance(results[1], Exception) else {}
-            total_elapsed = (time.time() - total_start_time) * 1000
+            if tts_enabled:
+                # TTS 模式：只生成聊天回复，不生成单个表情
+                print(f"🎬 TTS 模式：使用连贯动作方案")
+                chat_reply = await self.server.chat_generator.generate(text, history)
 
-            response = {
-                "type": "chat_response",
-                "reply": chat_reply,
-                "expression": expression_result.get("expression", "") if isinstance(expression_result, dict) else "",
-                "parameters": expression_result.get("parameters", {}) if isinstance(expression_result, dict) else {},
-                "duration": expression_result.get("duration", 800) if isinstance(expression_result, dict) else 800,
-                "autoReset": auto_reset,
-            }
+                response = {
+                    "type": "chat_response",
+                    "reply": chat_reply,
+                    "expression": "",
+                    "parameters": {},
+                    "duration": 800,
+                    "autoReset": auto_reset,
+                }
 
-            # 如果启用了 TTS 且需要预生成连续动作
-            if prepare_tts_motion and self.server.tts_generator and self.server.tts_generator.is_enabled():
+                # 预生成 TTS 连续动作
                 print(f"🎬 预生成 TTS 连续动作...")
                 motion_start = time.time()
 
@@ -180,18 +186,38 @@ class WebSocketHandler:
                 # 将动作帧添加到响应中
                 response["ttsMotionFrames"] = motion_frames
                 response["ttsMotionReady"] = True
+            else:
+                # 非 TTS 模式：并发生成聊天回复和一次性表情
+                print(f"🎭 非 TTS 模式：使用单个表情")
+                chat_task = self.server.chat_generator.generate(text, history)
+                expression_task = self.server.expression_generator.generate(text, context)
+                results = await asyncio.gather(chat_task, expression_task, return_exceptions=True)
 
+                chat_reply = results[0] if not isinstance(results[0], Exception) else f"聊天生成失败: {results[0]}"
+                expression_result = results[1] if not isinstance(results[1], Exception) else {}
+
+                response = {
+                    "type": "chat_response",
+                    "reply": chat_reply,
+                    "expression": expression_result.get("expression", "") if isinstance(expression_result, dict) else "",
+                    "parameters": expression_result.get("parameters", {}) if isinstance(expression_result, dict) else {},
+                    "duration": expression_result.get("duration", 800) if isinstance(expression_result, dict) else 800,
+                    "autoReset": auto_reset,
+                }
+
+                if isinstance(expression_result, dict):
+                    print(f"   🎁 表情: {expression_result.get('expression', '未知')}")
+                    params = expression_result.get('parameters', {})
+                    if params:
+                        print(f"   📊 表情参数:")
+                        for param_id, value in params.items():
+                            print(f"      {param_id}: {value}")
+
+            total_elapsed = (time.time() - total_start_time) * 1000
             await ws.send_json(response)
 
             print(f"{'=' * 50}")
             print(f"✅ 请求处理完成 | 总耗时: {total_elapsed:.0f}ms")
-            if isinstance(expression_result, dict):
-                print(f"   🎁 表情: {expression_result.get('expression', '未知')}")
-                params = expression_result.get('parameters', {})
-                if params:
-                    print(f"   📊 表情参数:")
-                    for param_id, value in params.items():
-                        print(f"      {param_id}: {value}")
             print(f"{'=' * 50}\n")
         except Exception as e:
             print(f"❌ 聊天处理错误: {e}")
@@ -277,17 +303,43 @@ class WebSocketHandler:
         generator = self.server.expression_generator
 
         try:
-            # 批量并发生成所有帧
+            # 第一阶段：生成动作规划
+            print(f"📋 [动作规划] 开始规划 {total_frames} 帧的动作序列...")
+            plan_start = time.time()
+            motion_plan = await generator.generate_motion_plan(
+                speech_text=speech_text,
+                total_frames=total_frames,
+                context=context,
+            )
+            plan_elapsed = (time.time() - plan_start) * 1000
+            print(f"📋 [动作规划] 完成 ⏱️ {plan_elapsed:.0f}ms")
+
+            # 确保规划帧数与总帧数匹配
+            if len(motion_plan) < total_frames:
+                print(f"⚠️ 规划帧数不足，补充默认动作")
+                for i in range(len(motion_plan), total_frames):
+                    motion_plan.append({
+                        "frameIndex": i,
+                        "action": "自然动作",
+                        "emphasis": ""
+                    })
+
+            # 第二阶段：根据规划批量生成所有帧
             print(f"🎬 [TTS连续动作] 开始批量生成 {total_frames} 帧...")
             generation_start = time.time()
 
             # 创建所有生成任务
             generation_tasks = []
             for frame_index in range(total_frames):
-                task = generator.generate_tts_motion_frame(
-                    speech_text=speech_text,
+                frame_plan = motion_plan[frame_index] if frame_index < len(motion_plan) else {
+                    "frameIndex": frame_index,
+                    "action": "自然动作",
+                    "emphasis": ""
+                }
+                task = generator.generate_tts_motion_frame_with_plan(
                     frame_index=frame_index,
                     total_frames=total_frames,
+                    frame_plan=frame_plan,
                     context=context,
                     frame_duration_ms=frame_duration_ms,
                 )
@@ -355,17 +407,38 @@ class WebSocketHandler:
         total_frames: int,
         context: str = "",
     ) -> list:
-        """批量生成所有 TTS 连续动作帧"""
+        """批量生成所有 TTS 连续动作帧（使用两阶段规划）"""
         frame_duration_ms = 1000
         generator = self.server.expression_generator
 
-        # 创建所有生成任务
+        # 第一阶段：生成动作规划
+        motion_plan = await generator.generate_motion_plan(
+            speech_text=speech_text,
+            total_frames=total_frames,
+            context=context,
+        )
+
+        # 确保规划帧数与总帧数匹配
+        if len(motion_plan) < total_frames:
+            for i in range(len(motion_plan), total_frames):
+                motion_plan.append({
+                    "frameIndex": i,
+                    "action": "自然动作",
+                    "emphasis": ""
+                })
+
+        # 第二阶段：根据规划创建所有生成任务
         generation_tasks = []
         for frame_index in range(total_frames):
-            task = generator.generate_tts_motion_frame(
-                speech_text=speech_text,
+            frame_plan = motion_plan[frame_index] if frame_index < len(motion_plan) else {
+                "frameIndex": frame_index,
+                "action": "自然动作",
+                "emphasis": ""
+            }
+            task = generator.generate_tts_motion_frame_with_plan(
                 frame_index=frame_index,
                 total_frames=total_frames,
+                frame_plan=frame_plan,
                 context=context,
                 frame_duration_ms=frame_duration_ms,
             )
@@ -383,25 +456,35 @@ class WebSocketHandler:
 
             parameters = self._filter_mouth_params(result.get("parameters", {}))
             if not parameters:
+                print(f"⚠️ 帧 {frame_index} 参数被过滤后为空")
                 continue
 
-            motion_frames.append({
+            frame_data = {
                 "frameIndex": frame_index,
                 "secondIndex": frame_index,
                 "duration": int(result.get("duration", frame_duration_ms)),
                 "parameters": parameters,
                 "expression": result.get("expression", ""),
-            })
+            }
+            motion_frames.append(frame_data)
+            print(f"✅ 帧 {frame_index} 已添加: {len(parameters)} 个参数")
 
+        print(f"🎬 最终返回 {len(motion_frames)} 个有效帧")
         return motion_frames
 
     def _filter_mouth_params(self, parameters: dict) -> dict:
+        """过滤嘴部开合参数，但保留嘴型参数（如微笑）供 LLM 控制"""
         if not parameters:
             return {}
+
+        # 只过滤嘴巴开合相关的参数，保留 Form/Shape 等嘴型参数
+        MOUTH_OPEN_HINTS = ("mouthopen", "mouth_open", "openmouth", "open_mouth")
+
         filtered = {}
         for param_id, value in parameters.items():
             pid = (param_id or "").lower()
-            if any(hint in pid for hint in self.MOUTH_PARAM_HINTS):
+            # 只过滤开合参数，保留 MouthForm 等其他嘴型参数
+            if any(hint in pid for hint in MOUTH_OPEN_HINTS):
                 continue
             filtered[param_id] = value
         return filtered

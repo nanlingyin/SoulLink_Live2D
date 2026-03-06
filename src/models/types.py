@@ -17,6 +17,7 @@ class Live2DModel:
     physics_file: Optional[str] = None
     pose_file: Optional[str] = None
     motions: List[str] = field(default_factory=list)
+    custom_prompt: Optional[str] = None  # 模型专属 prompt
 
     def __post_init__(self):
         if self.motions is None:

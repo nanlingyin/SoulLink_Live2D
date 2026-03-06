@@ -49,6 +49,7 @@ class ExpressionGenerator(BaseGenerator):
         self.available_parameters: Dict[str, dict] = {}
         self.eye_open_binary = eye_open_binary
         self.joint_motion_boost = max(1.0, float(joint_motion_boost))
+        self.custom_prompt: str = ""  # 模型专属 prompt
 
     def set_runtime_options(
         self,
@@ -169,7 +170,7 @@ class ExpressionGenerator(BaseGenerator):
             if self._has_joint_params()
             else "优先输出与当前模型相关的参数。"
         )
-        return f"""你是一个 Live2D 虚拟形象的表情控制器。根据场景、对话或情感描述，生成表情参数。
+        base_prompt = f"""你是一个 Live2D 虚拟形象的表情控制器。根据场景、对话或情感描述，生成表情参数。
 
 当前模型可用参数：
 {param_descriptions}
@@ -188,8 +189,62 @@ class ExpressionGenerator(BaseGenerator):
 2. 眼睛、眉毛、嘴巴、头部角度可组合表达
 3. {eye_rule}
 4. {joint_rule}
-5. 只返回 JSON，不要附加解释
+5. 只返回 JSON，不要附加解释"""
+
+        # 如果有模型专属 prompt，附加到末尾
+        if self.custom_prompt:
+            base_prompt += f"\n\n【模型专属规则】\n{self.custom_prompt}"
+
+        return base_prompt
+
+    def _generate_motion_plan_prompt(self) -> str:
+        """生成动作规划器的提示词"""
+        base_prompt = """你是一个 Live2D 动作规划器。你需要为语音播报阶段规划整体的动作序列。
+
+你的任务是根据语音内容和总帧数，规划每一帧应该执行的动作。
+
+返回 JSON 格式：
+{
+  "frames": [
+    {
+      "frameIndex": 0,
+      "action": "微笑并轻轻侧头"
+    },
+    {
+      "frameIndex": 1,
+      "action": "挥手同时身体前倾"
+    },
+    {
+      "frameIndex": 2,
+      "action": "比心并歪头卖萌"
+    }
+  ]
+}
+
+要求：
+1. action 描述要包含多个维度的动作组合（6-12个字），必须同时包含：
+   - 表情变化（微笑、害羞、惊讶、眨眼等）
+   - 头部动作（点头、摇头、侧头、歪头、抬头、低头等）
+   - 身体姿态（前倾、后仰、左倾、右倾等）
+   - 手部动作（挥手、比心、猫手、祈祷等特殊动作，可选）
+2. 每一帧都要有明显的头部或身体姿态变化，不能只有表情或手部动作
+3. 动作要有变化和节奏感，避免单调重复
+4. 优先使用模型特色动作（如果语音内容适合）
+5. 动作之间要有连贯性和过渡
+6. 只返回 JSON，不要额外解释
+
+示例：
+- "微笑并轻轻点头" - 包含表情+头部动作
+- "害羞地低头身体右倾" - 包含表情+头部+身体
+- "挥手同时侧头微笑" - 包含手部+头部+表情
+- "比心并歪头身体前倾" - 包含手部+头部+身体
 """
+
+        # 如果有模型专属 prompt，附加模型特色动作提示
+        if self.custom_prompt:
+            base_prompt += f"\n\n【模型专属动作提示】\n可以使用的特色动作包括：糖、歌、挥手、猫手、游戏、祈祷、比心、内裤、鞭子、碗、猫等。\n根据语音内容选择合适的动作，并结合头部和身体姿态变化。"
+
+        return base_prompt
 
     def _generate_tts_motion_prompt(self, frame_duration_ms: int) -> str:
         if not self.available_parameters:
@@ -201,7 +256,7 @@ class ExpressionGenerator(BaseGenerator):
             if self.eye_open_binary
             else "眼睛开闭类参数可以输出区间内连续值。"
         )
-        return f"""你是一个 Live2D 连续动作控制器。
+        base_prompt = f"""你是一个 Live2D 连续动作控制器。
 你正在为语音播报阶段生成逐秒关键帧，只负责非嘴部动作。
 
 当前模型可用参数（已排除嘴部参数）：
@@ -223,7 +278,13 @@ class ExpressionGenerator(BaseGenerator):
 4. 输出必须是 JSON，不要额外解释
 """
 
-    async def _call_llm(self, request_body: dict) -> dict:
+        # 如果有模型专属 prompt，附加到末尾
+        if self.custom_prompt:
+            base_prompt += f"\n\n【模型专属规则】\n{self.custom_prompt}"
+
+        return base_prompt
+
+    async def _call_llm(self, request_body: dict, log_prefix: str = "🎭 [表情生成]") -> dict:
         if not self.config.api_key or self.config.api_key == "your-api-key-here":
             raise ValueError("请先在 config.yaml 中设置 API Key")
 
@@ -245,7 +306,7 @@ class ExpressionGenerator(BaseGenerator):
                 data = await response.json()
                 content = data["choices"][0]["message"]["content"]
                 elapsed = (time.time() - start_time) * 1000
-                print(f"🎭 [表情生成] 完成 ⏱️ {elapsed:.0f}ms")
+                print(f"{log_prefix} 完成 ⏱️ {elapsed:.0f}ms")
                 return self._extract_json(content)
 
     async def generate(self, input_text: str, context: str = "") -> dict:
@@ -270,6 +331,96 @@ class ExpressionGenerator(BaseGenerator):
         result["parameters"] = self._clamp_parameters(result.get("parameters", {}))
         return result
 
+    async def generate_motion_plan(
+        self,
+        speech_text: str,
+        total_frames: int,
+        context: str = "",
+    ) -> list:
+        """生成整体动作规划序列"""
+        if not self.available_parameters:
+            raise ValueError("模型参数尚未加载")
+
+        user_message = (
+            f"语音内容：{speech_text}\n"
+            f"总帧数：{total_frames}\n"
+            f"请为这段语音规划 {total_frames} 帧的动作序列。"
+        )
+        if context:
+            user_message = f"场景背景：{context}\n\n{user_message}"
+
+        request_body = {
+            "model": self.config.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": self._generate_motion_plan_prompt(),
+                },
+                {"role": "user", "content": user_message},
+            ],
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens * 2,  # 规划需要更多 token
+        }
+
+        print(f"📋 [动作规划] 调用 API ({self.config.model}) 规划 {total_frames} 帧...")
+        result = await self._call_llm(request_body, log_prefix="📋 [动作规划]")
+        frames = result.get("frames", [])
+        print(f"📋 [动作规划] 共规划 {len(frames)} 帧")
+        return frames
+
+    async def generate_tts_motion_frame_with_plan(
+        self,
+        frame_index: int,
+        total_frames: int,
+        frame_plan: dict,
+        context: str = "",
+        frame_duration_ms: int = 1000,
+    ) -> dict:
+        """根据动作规划生成具体的参数值（复用单个表情生成逻辑）"""
+        if not self.available_parameters:
+            raise ValueError("模型参数尚未加载")
+
+        action = frame_plan.get("action", "自然动作")
+
+        # 直接使用动作描述作为输入，复用单个表情生成的系统提示词
+        user_message = action
+        if context:
+            user_message = f"场景背景：{context}\n\n当前输入：{action}"
+
+        request_body = {
+            "model": self.config.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": self._generate_system_prompt(),  # 复用单个表情的系统提示词
+                },
+                {"role": "user", "content": user_message},
+            ],
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+        }
+
+        print(
+            f"🎬 [TTS连续动作] 调用 API ({self.config.model}) "
+            f"frame={frame_index + 1}/{total_frames} action={action}"
+        )
+        result = await self._call_llm(request_body)
+        # 过滤嘴部参数
+        result["parameters"] = self._clamp_parameters(
+            result.get("parameters", {}),
+            exclude_mouth=True,
+        )
+        result["duration"] = frame_duration_ms
+
+        # 输出生成的参数内容
+        params = result.get("parameters", {})
+        if params:
+            print(f"   📊 生成参数: {params}")
+        else:
+            print(f"   ⚠️ 未生成任何参数")
+
+        return result
+
     async def generate_tts_motion_frame(
         self,
         speech_text: str,
@@ -278,6 +429,7 @@ class ExpressionGenerator(BaseGenerator):
         context: str = "",
         frame_duration_ms: int = 1000,
     ) -> dict:
+        """旧版本的帧生成方法（保留兼容性）"""
         if not self.available_parameters:
             raise ValueError("模型参数尚未加载")
 

@@ -271,12 +271,20 @@ class TTSService {
         // 如果有预生成的动作帧，直接使用它们
         if (this.preGeneratedMotionFrames && this.preGeneratedMotionFrames.length > 0) {
             console.log('🎬 使用预生成的连续动作帧:', this.preGeneratedMotionFrames.length);
+            console.log('🎬 预生成帧内容:', this.preGeneratedMotionFrames);
             this._lockIdleMotion();
             this.motionStartTime = performance.now();
             this._clearMotionFrameTimers();
 
-            // 直接调度所有预生成的帧
+            // 生成一个 session ID 用于预生成帧
+            const sessionId = `tts-motion-pregen-${Date.now()}`;
+            this.motionSessionId = sessionId;
+            console.log('🎬 设置 sessionId:', sessionId);
+
+            // 为每个预生成的帧添加 sessionId
             for (const frame of this.preGeneratedMotionFrames) {
+                frame.sessionId = sessionId;
+                console.log('🎬 准备调度帧:', frame);
                 this._scheduleMotionFrame(frame);
             }
 
@@ -316,9 +324,20 @@ class TTSService {
 
     _scheduleMotionFrame(msg) {
         const secondIndex = Number.isFinite(msg.secondIndex) ? msg.secondIndex : (msg.frameIndex || 0);
-        const targetMs = Math.max(0, secondIndex * 1000);
+        const targetMs = Math.max(0, secondIndex * 2000); // 每帧2秒
         const elapsedMs = this.audio ? this.audio.currentTime * 1000 : 0;
         const delayMs = Math.max(0, targetMs - elapsedMs);
+
+        console.log('🎬 调度动作帧:', {
+            frameIndex: msg.frameIndex,
+            secondIndex: secondIndex,
+            targetMs: targetMs,
+            elapsedMs: elapsedMs,
+            delayMs: delayMs,
+            audioCurrentTime: this.audio ? this.audio.currentTime : 'no audio',
+            sessionId: msg.sessionId,
+            currentSessionId: this.motionSessionId
+        });
 
         const timer = setTimeout(() => {
             this._applyMotionFrame(msg);
@@ -328,20 +347,69 @@ class TTSService {
     }
 
     _applyMotionFrame(msg) {
-        if (!this.motionSessionId || msg.sessionId !== this.motionSessionId) return;
-
-        const filteredParams = this._filterMotionParameters(msg.parameters || {});
-        if (Object.keys(filteredParams).length === 0) return;
-
-        const duration = msg.duration || 900;
-        if (window.transitionToExpression) {
-            window.transitionToExpression(filteredParams, duration, null, false);
+        if (!this.motionSessionId || msg.sessionId !== this.motionSessionId) {
+            console.warn('🎬 帧被拒绝: sessionId 不匹配', {
+                expected: this.motionSessionId,
+                received: msg.sessionId
+            });
             return;
         }
 
-        // Fallback to direct write.
-        if (window.setParameter) {
-            for (const [paramId, value] of Object.entries(filteredParams)) {
+        const filteredParams = this._filterMotionParameters(msg.parameters || {});
+        if (Object.keys(filteredParams).length === 0) {
+            console.warn('🎬 帧被拒绝: 过滤后参数为空', msg.parameters);
+            return;
+        }
+
+        console.log('🎬 应用动作帧:', {
+            frameIndex: msg.frameIndex,
+            parameters: filteredParams,
+            duration: msg.duration
+        });
+
+        // 先自然过渡重置所有非嘴部参数到默认值，避免上一帧参数残留
+        this._resetNonMouthParameters(400); // 400ms 过渡时间
+
+        // 延迟应用新参数，让重置动画先完成
+        setTimeout(() => {
+            const duration = msg.duration || 1600; // 2秒帧，留400ms给重置，剩余1600ms
+            if (window.transitionToExpression) {
+                window.transitionToExpression(filteredParams, duration, null, false);
+                return;
+            }
+
+            // Fallback to direct write.
+            if (window.setParameter) {
+                for (const [paramId, value] of Object.entries(filteredParams)) {
+                    window.setParameter(paramId, value);
+                }
+            }
+        }, 400); // 等待重置动画完成
+    }
+
+    _resetNonMouthParameters(transitionDuration = 400) {
+        const availableParams = window.SoulLink?.availableParameters || {};
+        if (!availableParams || Object.keys(availableParams).length === 0) {
+            return;
+        }
+
+        // 构建重置参数对象
+        const resetParams = {};
+        for (const [paramId, info] of Object.entries(availableParams)) {
+            if (this._isMouthParam(paramId)) {
+                continue;
+            }
+
+            const defaultValue = Number.isFinite(info.default) ? info.default : 0;
+            resetParams[paramId] = defaultValue;
+        }
+
+        // 使用过渡动画自然重置
+        if (window.transitionToExpression) {
+            window.transitionToExpression(resetParams, transitionDuration, null, false);
+        } else if (window.setParameter) {
+            // Fallback: 直接设置
+            for (const [paramId, value] of Object.entries(resetParams)) {
                 window.setParameter(paramId, value);
             }
         }

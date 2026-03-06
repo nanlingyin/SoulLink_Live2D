@@ -56,6 +56,7 @@ class ModelScanner:
             physics_file = None
             pose_file = None
             motions = []
+            custom_prompt = None
 
             for f in model_dir.iterdir():
                 if f.suffix == '.json':
@@ -65,6 +66,14 @@ class ModelScanner:
                         physics_file = f.name
                     elif f.name.endswith('.pose3.json'):
                         pose_file = f.name
+                elif f.suffix == '.txt' and f.name == 'model_prompt.txt':
+                    # 读取模型专属 prompt
+                    try:
+                        custom_prompt = f.read_text(encoding='utf-8').strip()
+                        if custom_prompt:
+                            print(f"   📝 发现模型专属 prompt: {model_name}")
+                    except Exception as e:
+                        print(f"   ⚠️ 读取 model_prompt.txt 失败: {e}")
 
             # 查找动作文件
             motions_dir = model_dir / 'motions'
@@ -92,7 +101,8 @@ class ModelScanner:
                 cdi_file=cdi_file,
                 physics_file=physics_file,
                 pose_file=pose_file,
-                motions=motions
+                motions=motions,
+                custom_prompt=custom_prompt
             )
         except Exception as e:
             print(f"⚠️ 解析模型失败 {model_file}: {e}")
