@@ -103,7 +103,8 @@ class ConfigManager:
                     easing=anim_data.get('easing', 'easeInOutCubic'),
                     auto_reset_delay=anim_data.get('autoResetDelay', 1500),
                     eye_open_binary=anim_data.get('eyeOpenBinary', False),
-                    joint_motion_boost=anim_data.get('jointMotionBoost', 1.25)
+                    joint_motion_boost=anim_data.get('jointMotionBoost', 1.25),
+                    tts_motion_keep_lip_sync=anim_data.get('ttsMotionKeepLipSync', True)
                 )
 
                 # 加载模型配置
@@ -178,7 +179,8 @@ class ConfigManager:
                 print(f"   🎬 动画: duration={self.animation.default_duration}ms, easing={self.animation.easing}")
                 print(
                     f"      eyeOpenBinary={self.animation.eye_open_binary}, "
-                    f"jointMotionBoost={self.animation.joint_motion_boost}"
+                    f"jointMotionBoost={self.animation.joint_motion_boost}, "
+                    f"ttsMotionKeepLipSync={self.animation.tts_motion_keep_lip_sync}"
                 )
                 # 显示语音配置
                 if self.voice.asr:
@@ -219,7 +221,8 @@ class ConfigManager:
                 "easing": self.animation.easing,
                 "autoResetDelay": self.animation.auto_reset_delay,
                 "eyeOpenBinary": self.animation.eye_open_binary,
-                "jointMotionBoost": self.animation.joint_motion_boost
+                "jointMotionBoost": self.animation.joint_motion_boost,
+                "ttsMotionKeepLipSync": self.animation.tts_motion_keep_lip_sync
             },
             "model": {
                 "directory": self.model.directory,

@@ -41,6 +41,10 @@ class TTSService {
             return false;
         }
 
+        // 从全局配置读取 ttsMotionKeepLipSync 设置
+        const animConfig = window.SoulLinkConfig?.animation || {};
+        this.ttsMotionKeepLipSync = animConfig.ttsMotionKeepLipSync !== false; // 默认为 true
+
         this.audio = new Audio();
         this._bindMotionCallbacks();
 
@@ -418,15 +422,27 @@ class TTSService {
     _filterMotionParameters(parameters) {
         const result = {};
         for (const [paramId, value] of Object.entries(parameters || {})) {
-            if (this._isMouthParam(paramId)) continue;
+            // 根据配置决定是否过滤嘴部参数
+            if (this.ttsMotionKeepLipSync && this._isMouthParam(paramId)) {
+                continue;
+            }
             result[paramId] = value;
         }
         return result;
     }
 
     _isMouthParam(paramId) {
+        // 根据 ttsMotionKeepLipSync 配置决定过滤范围
         const id = String(paramId || '').toLowerCase();
-        return id.includes('mouth') || id.includes('parammouth');
+
+        if (this.ttsMotionKeepLipSync) {
+            // 启用口型同步时：只过滤嘴巴开合参数，保留 MouthForm 等其他嘴型参数
+            return id.includes('mouthopen') || id.includes('mouth_open') ||
+                   id.includes('openmouth') || id.includes('open_mouth');
+        } else {
+            // 关闭口型同步时：不过滤任何嘴部参数，让 LLM 完全控制
+            return false;
+        }
     }
 
     _findMouthParams() {

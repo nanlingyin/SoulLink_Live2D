@@ -44,23 +44,28 @@ class ExpressionGenerator(BaseGenerator):
         config: Union[LLMConfig, APIConfig],
         eye_open_binary: bool = False,
         joint_motion_boost: float = 1.25,
+        tts_motion_keep_lip_sync: bool = True,
     ):
         self.config = config
         self.available_parameters: Dict[str, dict] = {}
         self.eye_open_binary = eye_open_binary
         self.joint_motion_boost = max(1.0, float(joint_motion_boost))
+        self.tts_motion_keep_lip_sync = tts_motion_keep_lip_sync
         self.custom_prompt: str = ""  # 模型专属 prompt
 
     def set_runtime_options(
         self,
         eye_open_binary: bool = None,
         joint_motion_boost: float = None,
+        tts_motion_keep_lip_sync: bool = None,
     ) -> None:
         """Allow server to update runtime tuning options from config."""
         if eye_open_binary is not None:
             self.eye_open_binary = bool(eye_open_binary)
         if joint_motion_boost is not None:
             self.joint_motion_boost = max(1.0, float(joint_motion_boost))
+        if tts_motion_keep_lip_sync is not None:
+            self.tts_motion_keep_lip_sync = bool(tts_motion_keep_lip_sync)
 
     def update_parameters(self, parameters: Dict[str, dict]) -> None:
         self.available_parameters = parameters
@@ -199,50 +204,62 @@ class ExpressionGenerator(BaseGenerator):
 
     def _generate_motion_plan_prompt(self) -> str:
         """生成动作规划器的提示词"""
-        base_prompt = """你是一个 Live2D 动作规划器。你需要为语音播报阶段规划整体的动作序列。
+        if not self.available_parameters:
+            return "模型参数尚未加载，请稍后再试。"
 
-你的任务是根据语音内容和总帧数，规划每一帧应该执行的动作。
+        # 构建参数能力描述，让 LLM 了解模型能做什么动作
+        param_capabilities = []
+        for pid, info in self.available_parameters.items():
+            name = info.get('name', pid)
+            param_capabilities.append(f"  - {name} ({pid})")
+
+        capabilities_text = "\n".join(param_capabilities)
+
+        base_prompt = f"""你是一个 Live2D 动作规划器。你需要为语音播报阶段规划整体的动作序列。
+
+当前模型支持的动作能力：
+{capabilities_text}
+
+你的任务是根据语音内容、总帧数和模型的动作能力，规划每一帧应该执行的动作。
 
 返回 JSON 格式：
-{
+{{
   "frames": [
-    {
+    {{
       "frameIndex": 0,
-      "action": "微笑并轻轻侧头"
-    },
-    {
+      "action": "微笑并轻轻侧头看向右边"
+    }},
+    {{
       "frameIndex": 1,
-      "action": "挥手同时身体前倾"
-    },
-    {
+      "action": "挥手同时身体前倾眼睛眨动"
+    }},
+    {{
       "frameIndex": 2,
-      "action": "比心并歪头卖萌"
-    }
+      "action": "比心并歪头卖萌脸颊泛红"
+    }}
   ]
-}
+}}
 
 要求：
-1. action 描述要包含多个维度的动作组合（6-12个字），必须同时包含：
-   - 表情变化（微笑、害羞、惊讶、眨眼等）
-   - 头部动作（点头、摇头、侧头、歪头、抬头、低头等）
-   - 身体姿态（前倾、后仰、左倾、右倾等）
-   - 手部动作（挥手、比心、猫手、祈祷等特殊动作，可选）
-2. 每一帧都要有明显的头部或身体姿态变化，不能只有表情或手部动作
+1. action 描述要充分利用模型的动作能力，包含多个维度的动作组合（10-20个字）：
+   - 根据上述参数列表，自由组合各种动作（角度、眼睛、眉毛、嘴巴、脸颊、身体等）
+   - 不要局限于固定的动作模式，要根据模型实际支持的参数来设计动作
+   - 每一帧都要有明显的变化，充分展现模型的表现力
+2. 动作描述要具体且可执行，例如：
+   - "微笑并轻轻点头眼睛半闭" - 明确指出微笑、点头、眼睛状态
+   - "害羞地低头身体右倾脸颊泛红" - 明确指出害羞表情、头部角度、身体倾斜、脸颊效果
+   - "挥手同时侧头微笑眉毛上扬" - 明确指出手部动作、头部角度、表情、眉毛状态
 3. 动作要有变化和节奏感，避免单调重复
 4. 优先使用模型特色动作（如果语音内容适合）
 5. 动作之间要有连贯性和过渡
 6. 只返回 JSON，不要额外解释
 
-示例：
-- "微笑并轻轻点头" - 包含表情+头部动作
-- "害羞地低头身体右倾" - 包含表情+头部+身体
-- "挥手同时侧头微笑" - 包含手部+头部+表情
-- "比心并歪头身体前倾" - 包含手部+头部+身体
+注意：充分利用模型的所有参数能力，不要只使用基础的几个参数。每一帧都应该是独特且富有表现力的。
 """
 
         # 如果有模型专属 prompt，附加模型特色动作提示
         if self.custom_prompt:
-            base_prompt += f"\n\n【模型专属动作提示】\n可以使用的特色动作包括：糖、歌、挥手、猫手、游戏、祈祷、比心、内裤、鞭子、碗、猫等。\n根据语音内容选择合适的动作，并结合头部和身体姿态变化。"
+            base_prompt += f"\n\n【模型专属动作提示】\n可以使用的特色动作包括：吃糖、歌、挥手、猫手、游戏、祈祷、比心、内裤、鞭子、碗、猫等。\n根据语音内容选择合适的动作，并结合头部、身体、表情等参数变化。"
 
         return base_prompt
 
@@ -405,10 +422,10 @@ class ExpressionGenerator(BaseGenerator):
             f"frame={frame_index + 1}/{total_frames} action={action}"
         )
         result = await self._call_llm(request_body)
-        # 过滤嘴部参数
+        # 根据配置决定是否过滤嘴部参数
         result["parameters"] = self._clamp_parameters(
             result.get("parameters", {}),
-            exclude_mouth=True,
+            exclude_mouth=self.tts_motion_keep_lip_sync,
         )
         result["duration"] = frame_duration_ms
 

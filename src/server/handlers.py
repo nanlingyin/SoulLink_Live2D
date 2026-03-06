@@ -472,6 +472,56 @@ class WebSocketHandler:
         print(f"🎬 最终返回 {len(motion_frames)} 个有效帧")
         return motion_frames
 
+    async def _generate_tts_motion_frames_with_plan(
+        self,
+        motion_plan: list,
+        context: str = "",
+    ) -> list:
+        """根据已有的动作规划批量生成参数（用于并行优化）"""
+        frame_duration_ms = 1000
+        generator = self.server.expression_generator
+        total_frames = len(motion_plan)
+
+        # 根据规划创建所有生成任务
+        generation_tasks = []
+        for frame_index, frame_plan in enumerate(motion_plan):
+            task = generator.generate_tts_motion_frame_with_plan(
+                frame_index=frame_index,
+                total_frames=total_frames,
+                frame_plan=frame_plan,
+                context=context,
+                frame_duration_ms=frame_duration_ms,
+            )
+            generation_tasks.append(task)
+
+        # 并发执行所有生成任务
+        results = await asyncio.gather(*generation_tasks, return_exceptions=True)
+
+        # 处理结果，过滤嘴部参数
+        motion_frames = []
+        for frame_index, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"⚠️ 帧 {frame_index} 生成失败: {result}")
+                continue
+
+            parameters = result.get("parameters", {})
+            if not parameters:
+                print(f"⚠️ 帧 {frame_index} 参数为空")
+                continue
+
+            frame_data = {
+                "frameIndex": frame_index,
+                "secondIndex": frame_index,
+                "duration": int(result.get("duration", frame_duration_ms)),
+                "parameters": parameters,
+                "expression": result.get("expression", ""),
+            }
+            motion_frames.append(frame_data)
+            print(f"✅ 帧 {frame_index} 已添加: {len(parameters)} 个参数")
+
+        print(f"🎬 最终返回 {len(motion_frames)} 个有效帧")
+        return motion_frames
+
     def _filter_mouth_params(self, parameters: dict) -> dict:
         """过滤嘴部开合参数，但保留嘴型参数（如微笑）供 LLM 控制"""
         if not parameters:

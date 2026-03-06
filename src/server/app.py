@@ -44,6 +44,7 @@ class SoulLinkServer:
             self.expression_generator.set_runtime_options(
                 eye_open_binary=self.config.animation.eye_open_binary,
                 joint_motion_boost=self.config.animation.joint_motion_boost,
+                tts_motion_keep_lip_sync=self.config.animation.tts_motion_keep_lip_sync,
             )
 
         self.chat_generator = ChatGenerator(chat_config)

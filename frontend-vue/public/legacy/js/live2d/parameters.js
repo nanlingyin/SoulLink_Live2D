@@ -49,10 +49,10 @@ async function loadParameterNames(cdiPath) {
             console.warn(`无法加载 cdi3.json: ${cdiPath}`);
             return {};
         }
-        
+
         const cdiData = await response.json();
         const paramNames = {};
-        
+
         // cdi3.json 中的参数定义
         if (cdiData.Parameters && Array.isArray(cdiData.Parameters)) {
             for (const param of cdiData.Parameters) {
@@ -61,7 +61,7 @@ async function loadParameterNames(cdiPath) {
                 }
             }
         }
-        
+
         return paramNames;
     } catch (error) {
         console.error('加载参数名称失败:', error);

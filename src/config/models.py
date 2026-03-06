@@ -62,6 +62,8 @@ class AnimationConfig:
     eye_open_binary: bool = False
     # Amplifies head/body/hand/etc joint-like params in generated motion.
     joint_motion_boost: float = 1.25
+    # When enabled, TTS motion keeps lip sync and excludes mouth params from LLM generation.
+    tts_motion_keep_lip_sync: bool = True
 
 
 @dataclass
