@@ -1,18 +1,18 @@
-﻿// ============================================
-// EmotionSync - AI 椹卞姩鐨?Live2D 琛ㄦ儏鎺у埗绯荤粺
-// 閫氱敤鐗堟湰 - 鑷姩閫傞厤浠绘剰 Live2D 妯″瀷
-// 鐗堟湰: 2.0.1 - 婊氳疆缂╂斁淇
+// ============================================
+// EmotionSync - AI 驱动的 Live2D 表情控制系统
+// 通用版本 - 自动适配任意 Live2D 模型
+// 版本: 2.0.1 - 滚轮缩放修复
 // ============================================
 
-console.log('馃幃 loader.js v2.0.1 宸插姞杞?- 鏀寔婊氳疆缂╂斁');
+console.log('🎮 loader.js v2.0.1 已加载 - 支持滚轮缩放');
 
-// 鍏ㄥ眬鍙橀噺
+// 全局变量
 let app = null;
 let model = null;
 let currentBgIndex = 0;
 let controlPanelVisible = true;
 
-// 妯″瀷閰嶇疆锛堣嚜鍔ㄤ粠 cdi3.json 鍔犺浇锛?
+// 模型配置（自动从 cdi3.json 加载）
 let modelConfig = {
     name: '',
     parameters: {},
@@ -20,10 +20,10 @@ let modelConfig = {
     parts: {}
 };
 
-// 鍙傛暟绱㈠紩缂撳瓨
+// 参数索引缓存
 let parameterIndexCache = {};
 
-// 褰撳墠鍙傛暟瑕嗙洊鐘舵€?
+// 当前参数覆盖状态
 let parameterOverrides = {};
 let blinkLockActive = false;
 let blinkLockValues = {};
@@ -37,7 +37,7 @@ const systemInfoState = {
     connection: null
 };
 
-// 鑳屾櫙棰滆壊鍒楄〃
+// 背景颜色列表
 const backgrounds = [
     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
@@ -199,31 +199,31 @@ function setSystemConnectionState(isConnected) {
 }
 
 // ============================================
-// 妯″瀷鍔犺浇涓庡垵濮嬪寲
+// 模型加载与初始化
 // ============================================
 
 /**
- * 鍒濆鍖?Live2D锛堢瓑寰呴厤缃姞杞藉悗璋冪敤锛?
+ * 初始化 Live2D（等待配置加载后调用）
  */
 async function initLive2D() {
-    // 鍏堝姞杞介厤缃?
+    // 先加载配置
     await loadConfig();
-    
+
     const canvas = document.getElementById('live2d-canvas');
     const container = document.getElementById('live2d-container');
     const loading = document.getElementById('loading');
-    
-    // 搴旂敤UI閰嶇疆
+
+    // 应用UI配置
     const uiConfig = getConfig('ui', {});
     controlPanelVisible = uiConfig.showControlPanel !== false;
     currentBgIndex = uiConfig.defaultBackground || 0;
     document.body.style.background = backgrounds[currentBgIndex];
-    
-    // 鑾峰彇妯″瀷鐩綍
+
+    // 获取模型目录
     const MODEL_DIR = getConfig('model.directory', './l2d');
-    
+
     try {
-        // 鑾峰彇璁惧鍍忕礌姣旓紝鐢ㄤ簬楂樺垎杈ㄧ巼鏄剧ず
+        // 获取设备像素比，用于高分辨率显示
         const devicePixelRatio = window.devicePixelRatio || 1;
 
         app = new PIXI.Application({
@@ -232,22 +232,22 @@ async function initLive2D() {
             height: container.clientHeight,
             transparent: true,
             autoStart: true,
-            resolution: devicePixelRatio,  // 楂樺垎杈ㄧ巼鏀寔
-            autoDensity: true,             // 鑷姩璋冩暣CSS灏哄
-            antialias: true                // 鎶楅敮榻?
+            resolution: devicePixelRatio,  // 高分辨率支持
+            autoDensity: true,             // 自动调整CSS尺寸
+            antialias: true                // 抗锯齿
         });
 
         window.PIXI = PIXI;
 
         loading.textContent = t('loading.model', 'Loading model...');
-        
+
         const modelJsonUrl = await findModel3Json(MODEL_DIR);
         if (!modelJsonUrl) {
-            throw new Error(`鍦?${MODEL_DIR} 鐩綍涓湭鎵惧埌 model3.json 鏂囦欢`);
+            throw new Error(`在 ${MODEL_DIR} 目录中未找到 model3.json 文件`);
         }
-        
-        console.log('鎵惧埌妯″瀷鏂囦欢:', modelJsonUrl);
-        
+
+        console.log('找到模型文件:', modelJsonUrl);
+
         const cdi3Url = modelJsonUrl.replace('.model3.json', '.cdi3.json');
         const cdi3Config = await loadModelConfig(cdi3Url);
         if (cdi3Config) {
@@ -255,17 +255,17 @@ async function initLive2D() {
             modelConfig.parameterGroups = cdi3Config.parameterGroups;
             modelConfig.parts = cdi3Config.parts;
         }
-        
+
         loading.textContent = t('loading.model', 'Loading model...');
 
-        // 閰嶇疆楂樺垎杈ㄧ巼绾圭悊鍔犺浇閫夐」
+        // 配置高分辨率纹理加载选项
         const loadOptions = {
-            autoInteract: false,  // 绂佺敤鑷姩浜や簰锛屾垜浠嚜宸卞鐞?
+            autoInteract: false,  // 禁用自动交互，我们自己处理
         };
 
         model = await PIXI.live2d.Live2DModel.from(modelJsonUrl, loadOptions);
 
-        // 璁剧疆绾圭悊缂╂斁妯″紡涓虹嚎鎬ф彃鍊硷紝鎻愰珮娓呮櫚搴?
+        // 设置纹理缩放模式为线性插值，提高清晰度
         if (model.internalModel && model.internalModel.coreModel) {
             const textures = model.internalModel.textures;
             if (textures) {
@@ -280,10 +280,10 @@ async function initLive2D() {
 
         const modelName = modelJsonUrl.split('/').pop().replace('.model3.json', '');
         modelConfig.name = modelName;
-        
+
         loading.style.display = 'none';
 
-        // 浣跨敤閰嶇疆涓殑缂╂斁姣斾緥
+        // 使用配置中的缩放比例
         const defaultScale = getConfig('model.defaultScale', 0.8);
         const scale = Math.min(
             container.clientWidth / model.width,
@@ -295,7 +295,7 @@ async function initLive2D() {
         model.x = container.clientWidth / 2;
         model.y = container.clientHeight / 2;
 
-        // 鏆撮湶鍏ㄥ眬寮曠敤
+        // 暴露全局引用
         window.model = model;
 
         app.stage.addChild(model);
@@ -303,55 +303,55 @@ async function initLive2D() {
         resetIdleMotionState();
         detectIdleMotionGroup();
         scheduleIdleResume(320);
-        
+
         model.on('hit', (hitAreas) => {
-            console.log('鐐瑰嚮鍖哄煙:', hitAreas);
+            console.log('点击区域:', hitAreas);
         });
-        
+
         console.log(`Live2D model [${modelConfig.name}] loaded`);
 
-        console.log('>>> 鍑嗗璋冪敤 enableDragging');
+        console.log('>>> 准备调用 enableDragging');
         enableDragging(model);
-        console.log('>>> enableDragging 璋冪敤瀹屾垚锛屽噯澶囪皟鐢?enableZoom');
+        console.log('>>> enableDragging 调用完成，准备调用 enableZoom');
         enableZoom();
-        console.log('>>> enableZoom 璋冪敤瀹屾垚');
+        console.log('>>> enableZoom 调用完成');
         hookIntoModelUpdate();
         generateControlPanel();
-        
-        // 閫氱煡 LLM 妯″潡鏇存柊鍙傛暟
+
+        // 通知 LLM 模块更新参数
         if (window.EmotionSync) {
             window.EmotionSync.updateModelConfig(modelConfig);
         }
-        
-        // 鏇存柊绯荤粺淇℃伅鏄剧ず
+
+        // 更新系统信息显示
         systemInfoState.modelName = modelConfig.name;
         systemInfoState.apiProvider = getConfig('llm.provider', 'openai');
         systemInfoState.connection = false;
         renderSystemInfo();
-        
+
         console.log('EmotionSync initialization complete');
-        
+
     } catch (error) {
-        console.error('鍔犺浇 Live2D 妯″瀷澶辫触:', error);
-        loading.textContent = '妯″瀷鍔犺浇澶辫触: ' + error.message;
+        console.error('加载 Live2D 模型失败:', error);
+        loading.textContent = '模型加载失败: ' + error.message;
         loading.style.color = '#ff6b6b';
     }
 }
 
 /**
- * 鍔犺浇妯″瀷閰嶇疆锛堜粠 cdi3.json锛?
+ * 加载模型配置（从 cdi3.json）
  */
 async function loadModelConfig(cdi3Url) {
     try {
         const response = await fetch(cdi3Url);
         if (!response.ok) {
-            console.warn('鏃犳硶鍔犺浇 cdi3.json锛屽皢浣跨敤妯″瀷榛樿鍙傛暟');
+            console.warn('无法加载 cdi3.json，将使用模型默认参数');
             return null;
         }
-        
+
         const cdi3Data = await response.json();
-        console.log('宸插姞杞?cdi3.json:', cdi3Data);
-        
+        console.log('已加载 cdi3.json:', cdi3Data);
+
         const parameters = {};
         if (cdi3Data.Parameters) {
             for (const param of cdi3Data.Parameters) {
@@ -365,7 +365,7 @@ async function loadModelConfig(cdi3Url) {
                 };
             }
         }
-        
+
         const parameterGroups = {};
         if (cdi3Data.ParameterGroups) {
             for (const group of cdi3Data.ParameterGroups) {
@@ -375,7 +375,7 @@ async function loadModelConfig(cdi3Url) {
                 };
             }
         }
-        
+
         const parts = {};
         if (cdi3Data.Parts) {
             for (const part of cdi3Data.Parts) {
@@ -385,36 +385,36 @@ async function loadModelConfig(cdi3Url) {
                 };
             }
         }
-        
+
         return { parameters, parameterGroups, parts };
-        
+
     } catch (error) {
-        console.error('鍔犺浇 cdi3.json 澶辫触:', error);
+        console.error('加载 cdi3.json 失败:', error);
         return null;
     }
 }
 
 /**
- * 浠庢ā鍨嬩腑鎻愬彇瀹為檯鍙傛暟鑼冨洿
+ * 从模型中提取实际参数范围
  */
 function extractParameterRanges() {
     if (!model || !model.internalModel || !model.internalModel.coreModel) {
         return;
     }
-    
+
     const coreModel = model.internalModel.coreModel;
     const params = coreModel._model?.parameters;
-    
+
     if (!params) return;
-    
+
     const ids = params.ids || [];
     const minValues = params.minimumValues || [];
     const maxValues = params.maximumValues || [];
     const defaultValues = params.defaultValues || [];
-    
+
     for (let i = 0; i < ids.length; i++) {
         const id = ids[i];
-        
+
         if (!modelConfig.parameters[id]) {
             modelConfig.parameters[id] = {
                 id: id,
@@ -422,39 +422,39 @@ function extractParameterRanges() {
                 groupId: ''
             };
         }
-        
+
         modelConfig.parameters[id].min = minValues[i] ?? -30;
         modelConfig.parameters[id].max = maxValues[i] ?? 30;
         modelConfig.parameters[id].default = defaultValues[i] ?? 0;
         modelConfig.parameters[id].index = i;
-        
+
         parameterIndexCache[id] = i;
     }
-    
-    console.log('鍙傛暟鑼冨洿宸叉洿鏂?', modelConfig.parameters);
+
+    console.log('参数范围已更新', modelConfig.parameters);
 }
 
 /**
- * 鏌ユ壘 model3.json 鏂囦欢
- * 浼樺厛浣跨敤 files.json 鍒楄〃锛屽惁鍒欏皾璇曞父瑙佸懡鍚?
+ * 查找 model3.json 文件
+ * 优先使用 files.json 列表，否则尝试常见命名
  */
 async function findModel3Json(baseDir) {
-    // 鏂规硶1: 灏濊瘯璇诲彇 files.json锛堟帹鑽愭柟寮忥級
+    // 方法1: 尝试读取 files.json（推荐方式）
     try {
         const response = await fetch(`${baseDir}/files.json`);
         if (response.ok) {
             const files = await response.json();
             const modelFile = files.find(f => f.endsWith('.model3.json'));
             if (modelFile) {
-                console.log('浠?files.json 鎵惧埌妯″瀷:', modelFile);
+                console.log('从 files.json 找到模型:', modelFile);
                 return `${baseDir}/${modelFile}`;
             }
         }
     } catch (e) {
-        console.log('files.json 涓嶅瓨鍦紝灏濊瘯鍏朵粬鏂瑰紡...');
+        console.log('files.json 不存在，尝试其他方式...');
     }
-    
-    // 鏂规硶2: 灏濊瘯閫氱敤鍚嶇О
+
+    // 方法2: 尝试通用名称
     const genericNames = ['model3.json', 'index.model3.json'];
     for (const name of genericNames) {
         try {
@@ -466,13 +466,13 @@ async function findModel3Json(baseDir) {
             continue;
         }
     }
-    
-    // 鏂规硶3: 灏濊瘯鎵弿甯歌妯″瀷鍚嶏紙鎸夊瓧姣嶉『搴忥紝閬垮厤浼樺厛绾ч棶棰橈級
+
+    // 方法3: 尝试扫描常见模型名（按字母顺序，避免优先级问题）
     const commonModelNames = [
-        'amane', 'amane0', 'hiyori', 'hiyori_pro_mic', 
+        'amane', 'amane0', 'hiyori', 'hiyori_pro_mic',
         'mao', 'mark', 'natori', 'rice', 'model'
     ].sort();
-    
+
     for (const name of commonModelNames) {
         try {
             const response = await fetch(`${baseDir}/${name}.model3.json`, { method: 'HEAD' });
@@ -483,12 +483,12 @@ async function findModel3Json(baseDir) {
             continue;
         }
     }
-    
+
     return null;
 }
 
 // ============================================
-// 鍙傛暟鎺у埗
+// 参数控制
 // ============================================
 
 function getParameterIndex(paramId) {
@@ -501,10 +501,10 @@ function getParameterIndex(paramId) {
 function getParameterValue(paramId) {
     const coreModel = model?.internalModel?.coreModel;
     if (!coreModel || !coreModel._model) return null;
-    
+
     const index = getParameterIndex(paramId);
     if (index < 0) return null;
-    
+
     return coreModel._model.parameters.values[index];
 }
 
@@ -544,7 +544,7 @@ function setParameter(paramId, value) {
     
     const index = getParameterIndex(paramId);
     if (index < 0) {
-        console.warn(`鍙傛暟涓嶅瓨鍦? ${paramId}`);
+        console.warn(`?????: ${paramId}`);
         return false;
     }
     
@@ -583,12 +583,12 @@ function hookIntoModelUpdate() {
             originalUpdateParams(dt, now);
             applyParameterOverrides();
         };
-        console.log('宸查挬鍏?updateParameters');
+        console.log('??? updateParameters');
     } else {
         app.ticker.add(() => {
             applyParameterOverrides();
         }, null, PIXI.UPDATE_PRIORITY.HIGH);
-        console.log('浣跨敤 ticker 杩涜鍙傛暟鏇存柊');
+        console.log('使用 ticker 进行参数更新');
     }
 }
 
@@ -638,14 +638,14 @@ function getAvailableParameters() {
 }
 
 // ============================================
-// 鍔ㄦ€佺敓鎴愭帶鍒堕潰鏉?
+// ????????
 // ============================================
 
 function generateControlPanel() {
     const panel = document.getElementById('control-panel');
     if (!panel) return;
     
-    // 鏍规嵁閰嶇疆鍐冲畾鏄惁鏄剧ず
+    // 根据配置决定是否显示
     if (!getConfig('ui.showControlPanel', true)) {
         panel.style.display = 'none';
         return;
@@ -714,7 +714,7 @@ function generateControlPanel() {
 function isPhysicsParam(paramId) {
     const physicsKeywords = [
         'Hair', 'Ribbon', 'Skirt', 'Bust', 'Sway', 
-        'Rotation_', 'Skinning', '鎽囧姩', '杈瓙', '渚у彂'
+        'Rotation_', 'Skinning', '摇动', '辫子', '侧发'
     ];
     return physicsKeywords.some(keyword => paramId.includes(keyword));
 }
@@ -736,7 +736,7 @@ function getGroupDisplayName(groupId) {
 }
 
 // ============================================
-// UI 浜や簰
+// UI 交互
 // ============================================
 
 function toggleControlPanel() {
@@ -783,23 +783,23 @@ function enableDragging(targetModel) {
 }
 
 /**
- * 鍚敤婊氳疆缂╂斁鍔熻兘
+ * 启用滚轮缩放功能
  */
 function enableZoom() {
-    console.log('========== enableZoom 鍑芥暟寮€濮嬫墽琛?==========');
+    console.log('========== enableZoom ?????? ==========');
 
-    // 缁戝畾鍒板鍣ㄨ€屼笉鏄?canvas锛屽洜涓?PIXI 浼氭帴绠?canvas 鐨勪氦浜?
+    // ???????? canvas??? PIXI ??? canvas ???
     const container = document.getElementById('live2d-container');
 
     console.log('enableZoom called');
-    console.log('馃敡 container:', container);
+    console.log('🔧 container:', container);
 
     if (!container) {
-        console.log('鉂?container 涓嶅瓨鍦紝鏃犳硶缁戝畾缂╂斁浜嬩欢');
+        console.log('? container ???????????????');
         return;
     }
 
-    // 绉婚櫎涔嬪墠鐨勪簨浠剁洃鍚櫒
+    // 移除之前的事件监听器
     if (container._zoomHandler) {
         console.log('Removed previous wheel listener');
         container.removeEventListener('wheel', container._zoomHandler);
@@ -809,42 +809,42 @@ function enableZoom() {
         event.preventDefault();
 
         const currentModel = window.model;
-        console.log('馃攳 婊氳疆浜嬩欢瑙﹀彂, deltaY:', event.deltaY);
+        console.log('🔍 滚轮事件触发, deltaY:', event.deltaY);
 
         if (!currentModel) {
             console.log('Model is not available');
             return;
         }
 
-        // 缂╂斁閫熷害
+        // 缩放速度
         const zoomSpeed = 0.1;
         let newScale = currentModel.scale.x;
 
         if (event.deltaY < 0) {
-            // 鍚戜笂婊氬姩锛屾斁澶?
+            // ???????
             newScale += zoomSpeed;
         } else {
-            // 鍚戜笅婊氬姩锛岀缉灏?
+            // ???????
             newScale -= zoomSpeed;
         }
 
-        // 闄愬埗缂╂斁鑼冨洿 (0.1 鍒?5 鍊?
+        // ?????? (0.1 ? 5 ?)
         newScale = Math.min(Math.max(newScale, 0.1), 5.0);
 
-        // 搴旂敤缂╂斁
+        // 应用缩放
         currentModel.scale.set(newScale);
 
-        console.log(`馃攳 缂╂斁瀹屾垚: ${newScale.toFixed(2)}`);
+        console.log(`🔍 缩放完成: ${newScale.toFixed(2)}`);
     };
 
     container.addEventListener('wheel', container._zoomHandler, { passive: false });
 
-    console.log('鉁?婊氳疆缂╂斁鍔熻兘宸插惎鐢?(bindto container)');
-    console.log('========== enableZoom 鍑芥暟鎵ц瀹屾瘯 ==========');
+    console.log('?? ????????? (bind to container)');
+    console.log('========== enableZoom 函数执行完毕 ==========');
 }
 
 /**
- * 閲嶇疆妯″瀷浣嶇疆鍜岀缉鏀惧埌鍒濆鐘舵€?
+ * ??????????????
  */
 function resetModel() {
     const currentModel = window.model;
@@ -853,20 +853,20 @@ function resetModel() {
     const container = document.getElementById('live2d-container');
     const defaultScale = getConfig('model.defaultScale', 0.8);
 
-    // 璁＄畻鍒濆缂╂斁
+    // 计算初始缩放
     const scale = Math.min(
         container.clientWidth / currentModel.internalModel.width,
         container.clientHeight / currentModel.internalModel.height
     ) * defaultScale;
 
-    // 閲嶇疆缂╂斁
+    // 重置缩放
     currentModel.scale.set(scale);
 
-    // 閲嶇疆浣嶇疆鍒颁腑蹇?
+    // ???????
     currentModel.x = container.clientWidth / 2;
     currentModel.y = container.clientHeight / 2;
 
-    console.log('馃攧 妯″瀷宸查噸缃? 浣嶇疆灞呬腑, 缂╂斁=' + scale.toFixed(3));
+    console.log('?? ?????: ????, ??=' + scale.toFixed(3));
 }
 
 function toggleBackground() {
@@ -887,21 +887,21 @@ function updateSliderUI(paramId, value) {
 }
 
 function debugModel() {
-    console.log('=== EmotionSync 璋冭瘯淇℃伅 ===');
-    console.log('閰嶇疆:', window.EmotionSyncConfig);
-    console.log('妯″瀷鍚嶇О:', modelConfig.name);
-    console.log('鍙傛暟鏁伴噺:', Object.keys(modelConfig.parameters).length);
-    console.log('鍙傛暟鍒楄〃:', modelConfig.parameters);
-    console.log('褰撳墠瑕嗙洊:', parameterOverrides);
+    console.log('=== EmotionSync 调试信息 ===');
+    console.log('配置:', window.EmotionSyncConfig);
+    console.log('模型名称:', modelConfig.name);
+    console.log('参数数量:', Object.keys(modelConfig.parameters).length);
+    console.log('参数列表:', modelConfig.parameters);
+    console.log('当前覆盖:', parameterOverrides);
     console.log('============================');
 }
 
 // ============================================
-// 鍒濆鍖?
+// 
 // ============================================
 
-// 娉ㄦ剰锛氫笉瑕佸湪杩欓噷鑷姩璋冪敤 initLive2D
-// 鍒濆鍖栫敱 index.html 缁熶竴鎺у埗锛屼互鏀寔 WebSocket 妯″紡
+// 注意：不要在这里自动调用 initLive2D
+// 初始化由 index.html 统一控制，以支持 WebSocket 模式
 // window.addEventListener('DOMContentLoaded', initLive2D);
 
 window.addEventListener('resize', () => {
@@ -909,10 +909,10 @@ window.addEventListener('resize', () => {
         const container = document.getElementById('live2d-container');
         const devicePixelRatio = window.devicePixelRatio || 1;
 
-        // 鏇存柊娓叉煋鍣ㄥ昂瀵?
+        // ???????
         app.renderer.resize(container.clientWidth, container.clientHeight);
 
-        // 纭繚鍒嗚鲸鐜囨纭?
+        // ???????
         if (app.renderer.resolution !== devicePixelRatio) {
             app.renderer.resolution = devicePixelRatio;
         }
@@ -920,7 +920,7 @@ window.addEventListener('resize', () => {
 });
 
 // ============================================
-// 瀵煎嚭鍏ㄥ眬 API
+// 导出全局 API
 // ============================================
 
 window.modelConfig = modelConfig;
@@ -947,21 +947,21 @@ window.toggleControlPanel = toggleControlPanel;
 window.initLive2D = initLive2D;
 
 // ============================================
-// 浠庢湇鍔″櫒鍔犺浇妯″瀷
+// 从服务器加载模型
 // ============================================
 
 /**
- * 浠庢湇鍔″櫒鍔犺浇鎸囧畾妯″瀷
- * @param {Object} modelInfo - 妯″瀷淇℃伅 { name, path, directory, model_file }
+ * 从服务器加载指定模型
+ * @param {Object} modelInfo - 模型信息 { name, path, directory, model_file }
  */
 async function loadModelFromServer(modelInfo) {
-    console.log('馃摝 浠庢湇鍔″櫒鍔犺浇妯″瀷:', modelInfo);
+    console.log('📦 从服务器加载模型:', modelInfo);
     
     const canvas = document.getElementById('live2d-canvas');
     const container = document.getElementById('live2d-container');
     const loading = document.getElementById('loading');
     
-    // 鏄剧ず鍔犺浇鎻愮ず
+    // 显示加载提示
     loading.style.display = 'block';
     loading.style.color = 'white';
     loading.innerHTML = `
@@ -970,14 +970,14 @@ async function loadModelFromServer(modelInfo) {
     `;
     
     try {
-        // 濡傛灉宸叉湁妯″瀷锛屽厛绉婚櫎
+        // 如果已有模型，先移除
         if (model && app) {
             app.stage.removeChild(model);
             model.destroy();
             model = null;
         }
         
-        // 鍒濆鍖?PIXI 搴旂敤锛堝鏋滆繕娌℃湁锛?
+        // ??? PIXI ?????????
         if (!app) {
             const devicePixelRatio = window.devicePixelRatio || 1;
             app = new PIXI.Application({
@@ -986,18 +986,18 @@ async function loadModelFromServer(modelInfo) {
                 height: container.clientHeight,
                 transparent: true,
                 autoStart: true,
-                resolution: devicePixelRatio,  // 楂樺垎杈ㄧ巼鏀寔
-                autoDensity: true,             // 鑷姩璋冩暣CSS灏哄
-                antialias: true                // 鎶楅敮榻?
+                resolution: devicePixelRatio,  // 高分辨率支持
+                autoDensity: true,             // 自动调整CSS尺寸
+                antialias: true                // ???
             });
             window.PIXI = PIXI;
         }
         
-        // 鏋勫缓妯″瀷璺緞 - path 宸茬粡鏄畬鏁磋矾寰勫 "l2d/amane.model3.json"
+        // 构建模型路径 - path 已经是完整路径如 "l2d/amane.model3.json"
         const modelJsonUrl = modelInfo.path;
-        console.log('妯″瀷 URL:', modelJsonUrl);
+        console.log('模型 URL:', modelJsonUrl);
         
-        // 鍔犺浇 cdi3.json 閰嶇疆 - 浣跨敤 directory + 鏇挎崲鍚庣紑鐨勬柟寮?
+        // ?? cdi3.json ?? - ?? directory + ???????
         const cdi3Url = modelJsonUrl.replace('.model3.json', '.cdi3.json');
         const cdi3Config = await loadModelConfig(cdi3Url);
         if (cdi3Config) {
@@ -1006,14 +1006,14 @@ async function loadModelFromServer(modelInfo) {
             modelConfig.parts = cdi3Config.parts;
         }
         
-        // 鍔犺浇 Live2D 妯″瀷锛堥厤缃珮鍒嗚鲸鐜囬€夐」锛?
+        // ?? Live2D ????????????
         const loadOptions = {
             autoInteract: false,
         };
         model = await PIXI.live2d.Live2DModel.from(modelJsonUrl, loadOptions);
         modelConfig.name = modelInfo.name;
 
-        // 璁剧疆绾圭悊缂╂斁妯″紡涓虹嚎鎬ф彃鍊硷紝鎻愰珮娓呮櫚搴?
+        // ???????????????????
         if (model.internalModel && model.internalModel.coreModel) {
             const textures = model.internalModel.textures;
             if (textures) {
@@ -1026,10 +1026,10 @@ async function loadModelFromServer(modelInfo) {
             }
         }
 
-        // 闅愯棌鍔犺浇鎻愮ず
+        // 隐藏加载提示
         loading.style.display = 'none';
 
-        // 璁剧疆妯″瀷浣嶇疆鍜岀缉鏀?
+        // ?????????
         const defaultScale = getConfig('model.defaultScale', 0.8);
         const scale = Math.min(
             container.clientWidth / model.width,
@@ -1041,12 +1041,12 @@ async function loadModelFromServer(modelInfo) {
         model.x = container.clientWidth / 2;
         model.y = container.clientHeight / 2;
 
-        // 鏆撮湶鍏ㄥ眬寮曠敤
+        // 暴露全局引用
         window.model = model;
 
         app.stage.addChild(model);
 
-        // 鎻愬彇鍙傛暟鑼冨洿
+        // 提取参数范围
         parameterIndexCache = {};
         parameterOverrides = {};
         window.parameterOverrides = parameterOverrides;
@@ -1057,28 +1057,28 @@ async function loadModelFromServer(modelInfo) {
         detectIdleMotionGroup();
         scheduleIdleResume(320);
 
-        // 鍚敤浜や簰
-        console.log('>>> [loadModelFromServer] 鍑嗗璋冪敤 enableDragging');
+        // 启用交互
+        console.log('>>> [loadModelFromServer] 准备调用 enableDragging');
         enableDragging(model);
-        console.log('>>> [loadModelFromServer] enableDragging 璋冪敤瀹屾垚锛屽噯澶囪皟鐢?enableZoom');
+        console.log('>>> [loadModelFromServer] enableDragging ????????? enableZoom');
         enableZoom();
-        console.log('>>> [loadModelFromServer] enableZoom 璋冪敤瀹屾垚');
+        console.log('>>> [loadModelFromServer] enableZoom 调用完成');
         hookIntoModelUpdate();
         
-        // 鐢熸垚鎺у埗闈㈡澘
+        // 生成控制面板
         generateControlPanel();
         
-        // 閫氱煡 LLM 妯″潡鏇存柊鍙傛暟
+        // 通知 LLM 模块更新参数
         if (typeof updateModelConfig === 'function') {
             updateModelConfig(modelConfig);
         }
         
-        // 鍚屾鍙傛暟鍒版湇鍔″櫒
+        // 同步参数到服务器
         if (window.wsClient && window.wsClient.connected) {
             window.wsClient.updateParameters(modelConfig.parameters);
         }
         
-        // 鏇存柊绯荤粺淇℃伅鏄剧ず
+        // 更新系统信息显示
         systemInfoState.modelName = modelConfig.name;
         systemInfoState.apiProvider = getConfig('llm.provider', 'openai');
         systemInfoState.connection = !!window.wsClient?.connected;
@@ -1086,12 +1086,12 @@ async function loadModelFromServer(modelInfo) {
         
         console.log(`Model [${modelConfig.name}] loaded`);
         
-        // 鏆撮湶鍏ㄥ眬寮曠敤
+        // 暴露全局引用
         window.model = model;
         
     } catch (error) {
-        console.error('鉂?鍔犺浇妯″瀷澶辫触:', error);
-        loading.textContent = '妯″瀷鍔犺浇澶辫触: ' + error.message;
+        console.error('? ??????:', error);
+        loading.textContent = '模型加载失败: ' + error.message;
         loading.style.color = '#ff6b6b';
     }
 }
