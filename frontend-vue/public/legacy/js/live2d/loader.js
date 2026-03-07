@@ -30,6 +30,7 @@ let blinkLockValues = {};
 const EYE_OPEN_PARAM_HINTS = ['eye', 'open'];
 let idleMotionGroup = null;
 let idleResumeTimer = null;
+let lastIdleStartTime = 0;
 const generatedMotionLocks = new Set();
 const systemInfoState = {
     modelName: '',
@@ -105,6 +106,13 @@ function startIdleMotionIfAvailable() {
     if (!model || !model.internalModel) return false;
     if (generatedMotionLocks.size > 0) return false;
 
+    // Debounce: prevent starting idle motion too frequently (within 500ms)
+    const now = Date.now();
+    if (now - lastIdleStartTime < 500) {
+        console.log('[Idle] Debounced: too soon since last idle start');
+        return false;
+    }
+
     const group = idleMotionGroup || detectIdleMotionGroup();
     if (!group) return false;
 
@@ -119,14 +127,20 @@ function startIdleMotionIfAvailable() {
         const motionManager = model.internalModel.motionManager;
         if (motionManager && typeof motionManager.startRandomMotion === 'function') {
             motionManager.startRandomMotion(group, 1);
+            lastIdleStartTime = now;
+            console.log('[Idle] Started idle motion');
             return true;
         }
         if (motionManager && typeof motionManager.startMotion === 'function') {
             motionManager.startMotion(group, randomIndex, 1);
+            lastIdleStartTime = now;
+            console.log('[Idle] Started idle motion');
             return true;
         }
         if (typeof model.motion === 'function') {
             model.motion(group, randomIndex, 1);
+            lastIdleStartTime = now;
+            console.log('[Idle] Started idle motion');
             return true;
         }
     } catch (error) {
@@ -155,7 +169,22 @@ function pauseIdleForGeneratedMotion(token = 'default') {
         clearTimeout(idleResumeTimer);
         idleResumeTimer = null;
     }
-    stopIdleMotion();
+
+    // Don't immediately stop idle motion - let it fade out naturally
+    // The first motion frame will smoothly transition from idle state
+    // Only stop idle motion after a short delay to allow smooth transition
+    setTimeout(() => {
+        if (generatedMotionLocks.size > 0) {
+            stopIdleMotion();
+            console.log('[Motion] Stopped idle motion after transition delay');
+        }
+    }, 200);
+
+    // Disable auto eye blink during generated motion
+    if (model?.internalModel?.eyeBlink) {
+        delete model.internalModel.eyeBlink;
+        console.log('[Motion] Disabled auto eye blink');
+    }
 }
 
 function resumeIdleForGeneratedMotion(token = 'default') {
@@ -163,6 +192,11 @@ function resumeIdleForGeneratedMotion(token = 'default') {
     generatedMotionLocks.delete(key);
     if (generatedMotionLocks.size === 0) {
         scheduleIdleResume(180);
+
+        // Re-enable auto eye blink after generated motion ends
+        // Note: eyeBlink will be automatically recreated by Live2D on next model update
+        // We just need to ensure it's not explicitly disabled
+        console.log('[Motion] Auto eye blink will resume on next update');
     }
 }
 
@@ -573,23 +607,21 @@ function setParameter(paramId, value) {
 }
 
 function hookIntoModelUpdate() {
-    if (!model || !model.internalModel) return;
-    
-    const internalModel = model.internalModel;
-    const originalUpdateParams = internalModel.updateParameters?.bind(internalModel);
-    
-    if (originalUpdateParams) {
-        internalModel.updateParameters = function(dt, now) {
-            originalUpdateParams(dt, now);
-            applyParameterOverrides();
-        };
-        console.log('??? updateParameters');
-    } else {
-        app.ticker.add(() => {
-            applyParameterOverrides();
-        }, null, PIXI.UPDATE_PRIORITY.HIGH);
-        console.log('使用 ticker 进行参数更新');
-    }
+    if (!model) return;
+
+    // Hook into model.update() instead of internalModel.updateParameters
+    // This ensures our parameter overrides are applied AFTER all internal updates
+    const originalUpdate = model.update.bind(model);
+
+    model.update = function(deltaTime) {
+        // Call original update (this includes motionManager, physics, etc.)
+        originalUpdate(deltaTime);
+
+        // Apply our parameter overrides AFTER all internal updates
+        applyParameterOverrides();
+    };
+
+    console.log('Hooked into model.update()');
 }
 
 function applyParameterOverrides() {
@@ -1043,6 +1075,25 @@ async function loadModelFromServer(modelInfo) {
 
         // 暴露全局引用
         window.model = model;
+
+        // Disable built-in animation controllers to avoid conflicts with generated motions
+        if (model.internalModel) {
+            // Disable auto breath animation
+            if (model.internalModel.breath) {
+                model.internalModel.breath.enabled = false;
+                console.log('[OK] Disabled built-in breath animation');
+            }
+            // Disable auto eye blink animation
+            if (model.internalModel.eyeBlink) {
+                model.internalModel.eyeBlink.enabled = false;
+                console.log('[OK] Disabled built-in eye blink animation');
+            }
+            // Disable expression manager auto update
+            if (model.internalModel.expressionManager) {
+                model.internalModel.expressionManager.enabled = false;
+                console.log('[OK] Disabled built-in expression manager');
+            }
+        }
 
         app.stage.addChild(model);
 
