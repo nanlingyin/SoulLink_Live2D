@@ -335,9 +335,29 @@ graph TD
 
 本项目的开发得到了以下组织和项目的支持：
 
-- **[栖灵 AI](https://www.spiritnest.ai/)** - 感谢栖灵 AI 对本项目开发过程的赞助支持
+- **[栖灵 AI](https://www.spiritnest.ai/)** - 感谢栖灵 AI 对本项目开发过程的资金赞助支持
+
+<div align="center">
+  <a href="https://www.spiritnest.ai/">
+    <img src="static/acknowledgments/spiritnest.png" alt="栖灵 AI">
+  </a>
+</div>
+
 - **[幻宙 Phantasm AI](https://phapi.furina.chat/)** - 感谢幻宙 Phantasm AI 为本项目的开发提供 API 支持
+
+<div align="center">
+  <a href="https://phapi.furina.chat/">
+    <img src="static/acknowledgments/phamtasm.png" alt="幻宙 Phantasm AI">
+  </a>
+</div>
+
 - **[my-neuro](https://github.com/morettt/my-neuro)** - 感谢 my-neuro 项目的开发者们为我提供的灵感
+
+<div align="center">
+  <a href="https://github.com/morettt/my-neuro">
+    <img src="static/acknowledgments/feiniutx.jpg" alt="my-neuro" width="30%">
+  </a>
+</div>
 
 ### 技术支持
 
