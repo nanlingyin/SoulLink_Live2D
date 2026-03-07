@@ -16,15 +16,25 @@ SoulLink_Live2D 是一个创新的项目，它不通过程序直接使用注册�
 -  **WebSocket 通信** - 前后端实时双向通信
 -  **统一配置** - 所有设置集中在 `config.yaml`
 
-## 本次更新内容
+## 最近更新 (v0.3.0 - 2025-03)
 
-- 新增 TTS 播放期连续动作流：根据语音时长按秒生成动作帧，并通过缓动函数串联为完整动作序列。
-- 新增口型联动：语音播放期间会同步嘴部开合，并与生成动作合并，避免参数冲突。
-- 优化眼部与眨眼冲突处理：连续动作播放期间锁定眨眼，动作结束后恢复自动眨眼。
-- 新增 `animation.eyeOpenBinary`：开启后眼部开合参数只取最小值或最大值。
-- 新增 `animation.jointMotionBoost`：提高头部、手部、身体等关节参数的动作幅度。
-- 优化 idle 协调：播放生成动作时中断 idle 动画，整段动作播放完成后再恢复 idle。
-- 前端新增中英双语切换，支持 `ui.language` 配置为 `auto`、`zh`、`en`。
+### 核心功能增强
+- **修复参数控制系统** - 解决了自动眨眼优先级过高导致眼部动作无法控制的问题，优化了参数覆盖机制
+- **模型专属 Prompt** - 支持为每个模型创建 `model_prompt.txt`，定制参数规则和动作能力描述
+- **两阶段动作生成** - 新增动作规划器，先生成动作描述再转换为参数，实现更生动自然的连续动作
+- **Vue 前端重构** - 迁移到 Vue 3 + Vite 架构，前后端完全分离，开发体验更好
+
+### 动画系统优化
+- **TTS 连续动作系统** - 语音播放期间按 2 秒一帧生成连贯动作序列，支持平滑过渡
+- **口型同步** - 语音播放期间自动同步嘴部开合，与生成动作无缝融合
+- **眨眼协调** - 连续动作播放期间自动禁用眨眼，播放结束后恢复，避免冲突
+- **Idle 动画协调** - 连续动作开始时平滑过渡，结束后防抖恢复，避免重复触发
+- **参数增强选项** - `animation.eyeOpenBinary` 支持眼部二值化，`animation.jointMotionBoost` 提高关节动作幅度
+
+### 用户体验改进
+- **中英双语界面** - 支持 `ui.language` 配置为 `auto`、`zh`、`en`，自动适配浏览器语言
+- **编码问题修复** - 解决了 loader.js 的 UTF-8 编码问题，中文注释正常显示
+- **配置文件增强** - 新增更多细节配置项，支持独立的表情生成和聊天 API 配置
 
 ## 预览
 
@@ -319,11 +329,21 @@ graph TD
 [![Star History Chart](https://api.star-history.com/svg?repos=nanlingyin/SoulLink_Live2D&type=Date&t=20260112)](https://www.star-history.com/#nanlingyin/SoulLink_Live2D&Date)
 
 
-## 致谢
+## 致谢与赞助
 
-- [Live2D Cubism SDK](https://www.live2d.com/)
-- [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display)
-- [PixiJS](https://pixijs.com/)
+### 特别感谢
+
+本项目的开发得到了以下组织和项目的支持：
+
+- **[栖灵 AI](https://www.spiritnest.ai/)** - 感谢栖灵 AI 对本项目开发过程的赞助支持
+- **[幻宙 Phantasm AI](https://phapi.furina.chat/)** - 感谢幻宙 Phantasm AI 为本项目的开发提供 API 支持
+- **[my-neuro](https://github.com/morettt/my-neuro)** - 感谢 my-neuro 项目的开发者们为我提供的灵感
+
+### 技术支持
+
+- [Live2D Cubism SDK](https://www.live2d.com/) - 官方 Live2D 运行时
+- [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) - Live2D 模型加载与渲染库
+- [PixiJS](https://pixijs.com/) - 强大的 2D 渲染引擎
 
 ## 技术原理
 
