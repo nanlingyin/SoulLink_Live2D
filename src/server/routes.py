@@ -4,6 +4,7 @@
 
 from pathlib import Path
 from dataclasses import asdict
+import yaml
 
 from aiohttp import web
 import aiohttp_cors
@@ -24,6 +25,8 @@ def setup_routes(app: web.Application, config: ConfigManager, ws_handler) -> Non
     # API 路由
     app.router.add_get('/api/models', create_get_models_handler(ws_handler.server))
     app.router.add_get('/api/config', create_get_config_handler(config))
+    app.router.add_get('/api/config/full', create_get_full_config_handler(config))
+    app.router.add_post('/api/config/save', create_save_config_handler(config))
 
     # TTS API 路由
     app.router.add_post('/api/tts', create_tts_handler(ws_handler.server))
@@ -109,10 +112,45 @@ def create_get_models_handler(server):
 
 
 def create_get_config_handler(config: ConfigManager):
-    """创建获取配置的处理器"""
+    """创建获取配置的处理器（前端安全配置，不含敏感信息）"""
     async def get_config(request: web.Request) -> web.Response:
         return web.json_response(config.get_frontend_config())
     return get_config
+
+
+def create_get_full_config_handler(config: ConfigManager):
+    """创建获取完整配置的处理器（包含敏感信息，用于设置页面）"""
+    async def get_full_config(request: web.Request) -> web.Response:
+        return web.json_response(config._raw_config)
+    return get_full_config
+
+
+def create_save_config_handler(config: ConfigManager):
+    """创建保存配置的处理器"""
+    async def save_config(request: web.Request) -> web.Response:
+        try:
+            new_config = await request.json()
+
+            # 保存到 config.yaml
+            config_path = Path(config.config_path)
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(new_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+            # 重新加载配置
+            config.load()
+
+            return web.json_response({
+                "success": True,
+                "message": "配置已保存并重新加载"
+            })
+        except Exception as e:
+            print(f"❌ 保存配置失败: {e}")
+            return web.json_response({
+                "success": False,
+                "error": str(e)
+            }, status=500)
+
+    return save_config
 
 
 def create_tts_handler(server):

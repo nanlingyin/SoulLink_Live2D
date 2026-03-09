@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { loadLegacyCore } from './services/legacy-loader';
 import { SoulLinkWsClient } from './services/ws-client';
+import SettingsPage from './components/SettingsPage.vue';
 
 const wsClient = new SoulLinkWsClient();
 window.wsClient = wsClient;
@@ -36,6 +37,7 @@ const mobileMode = ref(false);
 const mobileTab = ref('chat');
 
 const showControlPanel = ref(true);
+const showSettings = ref(false);
 
 const backgroundOptions = ref([]);
 const activeBackgroundIndex = ref(0);
@@ -422,6 +424,14 @@ function setLanguage(nextLanguage) {
   language.value = nextLanguage;
 }
 
+function openSettings() {
+  showSettings.value = true;
+}
+
+function closeSettings() {
+  showSettings.value = false;
+}
+
 async function bootstrap() {
   booting.value = true;
 
@@ -534,6 +544,10 @@ onBeforeUnmount(() => {
             <option value="en">English</option>
           </select>
         </label>
+
+        <button class="settings-button" @click="openSettings" title="系统设置">
+          ⚙️
+        </button>
       </div>
     </header>
 
@@ -634,5 +648,7 @@ onBeforeUnmount(() => {
         控制
       </button>
     </div>
+
+    <SettingsPage v-if="showSettings" @close="closeSettings" />
   </div>
 </template>

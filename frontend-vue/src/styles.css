@@ -127,8 +127,9 @@ input {
 
 .toolbar-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(130px, 170px));
+  grid-template-columns: repeat(3, minmax(130px, 170px)) auto;
   gap: 0.8rem;
+  align-items: center;
 }
 
 .toolbar-item {
@@ -179,6 +180,27 @@ input {
 .connection-chip.is-disconnected {
   background: rgba(255, 107, 118, 0.18);
   border-color: rgba(255, 107, 118, 0.54);
+}
+
+.settings-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(175, 226, 255, 0.22);
+  background: rgba(8, 21, 34, 0.84);
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.settings-button:hover {
+  background: rgba(12, 30, 47, 0.9);
+  border-color: rgba(75, 208, 226, 0.5);
+  transform: rotate(45deg);
 }
 
 .workspace {

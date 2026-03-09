@@ -1,5 +1,5 @@
-# SoulLink_Live2D 配置文件示例
-# 请复制此文件为 config.yaml 并填入您的 API Key
+# SoulLink_Live2D 配置文件
+# 请根据您的需要修改以下配置
 
 # 服务器配置
 server:
@@ -32,32 +32,30 @@ llm:
     provider: openai
 
     # API Key (必填)
-    apiKey: "sk-your-api-key-here"
+    apiKey: "your-api-key-here"
 
     # API 基础 URL
     # OpenAI: https://api.openai.com/v1
     # DeepSeek: https://api.deepseek.com/v1
-    # SiliconFlow: https://api.siliconflow.cn/v1
     # Ollama: http://localhost:11434/v1
     baseUrl: "https://api.openai.com/v1"
 
     # 模型名称
     # OpenAI: gpt-4o-mini, gpt-4o
     # DeepSeek: deepseek-chat
-    # SiliconFlow: deepseek-ai/DeepSeek-V3
     # Ollama: llama2, mistral, etc.
     model: "gpt-4o-mini"
 
     # 生成参数
-    temperature: 0.1
-    maxTokens: 800
-    # 出现一些报错的时候可以适当拉高 maxTokens
+    temperature: 0.7
+    maxTokens: 500
 
     # ========== 表情生成专用配置 (可选) ==========
     # 配置后可以为表情生成使用不同的模型/API
+    # 不填则继承上面的 api 配置
     expression:
       provider: openai
-      apiKey: "sk-your-expression-api-key-here"  # 不填则继承 api.apiKey
+      apiKey: "your-api-key-here"  # 不填则继承 api.apiKey
       baseUrl: "https://api.openai.com/v1"  # 不填则继承 api.baseUrl
       model: "gpt-4o-mini"  # 推荐使用轻量模型，响应快
       temperature: 0.1
@@ -68,12 +66,11 @@ llm:
     # 配置后可以为聊天对话使用不同的模型/API
     chat:
       provider: openai
-      apiKey: "sk-your-chat-api-key-here"  # 不填则继承 api.apiKey
+      apiKey: "your-api-key-here"  # 不填则继承 api.apiKey
       baseUrl: "https://api.openai.com/v1"  # 不填则继承 api.baseUrl
       model: "gpt-4o"  # 可以使用更强大的模型获得更好的对话质量
-      temperature: 0.5
-      maxTokens: 5000
-
+      temperature: 0.7
+      maxTokens: 1000
 # 动画配置
 animation:
   # 默认表情过渡时间 (毫秒)
@@ -88,10 +85,10 @@ animation:
   autoResetDelay: 3000
 
   # 眼睛开合二值化 - true: 眼睛只能完全睁开或闭合, false: 允许中间值
-  eyeOpenBinary: true
+  eyeOpenBinary: false
 
   # 关节动作增强系数 - 提高头部、身体、手部等关节参数的动作幅度
-  jointMotionBoost: 1.35
+  jointMotionBoost: 1.25
 
   # ========== 分层参数系统配置 ==========
   # 启用分层参数管理系统 - 解决 TTS 期间动画冲突问题
@@ -119,7 +116,7 @@ ui:
   # 默认背景 (索引，0-6)
   defaultBackground: 0
 
-  # 界面语言: "auto" (自动检测), "zh-CN" (简体中文), "en-US" (英语)
+  # 语言: auto (自动), zh (中文), en (English)
   language: "auto"
 
 # 语音配置 (ASR 语音识别 + TTS 语音合成)
@@ -145,21 +142,18 @@ voice:
   # ========== TTS 语音合成配置 ==========
   tts:
     # 是否启用语音合成 (AI 回复时播放语音)
-    enabled: true
+    enabled: false
     # TTS API 地址 (OpenAI 格式)
     baseUrl: "https://api.openai.com/v1"
     # API Key
-    apiKey: "sk-your-tts-api-key-here"
+    apiKey: "your-tts-api-key-here"
     # 模型名称
-    # OpenAI: tts-1, tts-1-hd
-    # SiliconFlow: FunAudioLLM/CosyVoice2-0.5B
     model: "tts-1"
-    # 声音选择
-    # OpenAI: alloy, echo, fable, onyx, nova, shimmer
-    # SiliconFlow CosyVoice: 需要指定具体的声音 ID
+    # 声音选择: alloy/echo/fable/onyx/nova/shimmer
     voice: "alloy"
     # 语速 (0.25 - 4.0)
     speed: 1.0
+
     # 口型同步配置
     lipSync:
       # 嘴巴开合幅度 (0.0 - 1.0)，默认 1.0 为完整范围
