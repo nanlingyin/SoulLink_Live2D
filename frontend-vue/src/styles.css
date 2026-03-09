@@ -211,6 +211,19 @@ input {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(560px, 1fr) minmax(280px, 340px);
   gap: 0.9rem;
+  transition: grid-template-columns 0.3s ease;
+}
+
+.workspace:has(.control-panel-shell.hidden) {
+  grid-template-columns: minmax(280px, 340px) 1fr;
+}
+
+.workspace:has(.chat-panel.hidden) {
+  grid-template-columns: 1fr minmax(280px, 340px);
+}
+
+.workspace:has(.chat-panel.hidden):has(.control-panel-shell.hidden) {
+  grid-template-columns: 1fr;
 }
 
 .panel,

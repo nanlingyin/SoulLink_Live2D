@@ -37,6 +37,7 @@ const mobileMode = ref(false);
 const mobileTab = ref('chat');
 
 const showControlPanel = ref(true);
+const showChatPanel = ref(true);
 const showSettings = ref(false);
 
 const backgroundOptions = ref([]);
@@ -415,6 +416,18 @@ function resetModelPose() {
 
 function toggleControlDock() {
   showControlPanel.value = !showControlPanel.value;
+  // 等待 CSS 过渡完成后触发 Live2D 重新布局
+  setTimeout(() => {
+    window.dispatchEvent(new Event('resize'));
+  }, 350);
+}
+
+function toggleChatPanel() {
+  showChatPanel.value = !showChatPanel.value;
+  // 等待 CSS 过渡完成后触发 Live2D 重新布局
+  setTimeout(() => {
+    window.dispatchEvent(new Event('resize'));
+  }, 350);
 }
 
 function setLanguage(nextLanguage) {
@@ -552,7 +565,7 @@ onBeforeUnmount(() => {
     </header>
 
     <main class="workspace" :class="{ mobile: mobileMode }">
-      <aside class="panel chat-panel" v-show="!mobileMode || mobileTab === 'chat'">
+      <aside class="panel chat-panel" :class="{ hidden: !showChatPanel }" v-show="showChatPanel && (!mobileMode || mobileTab === 'chat')">
         <div class="panel-header">
           <h3>{{ tr('chat.title', 'AI 对话') }}</h3>
           <button class="text-button" type="button" @click="clearChat">清空</button>
@@ -611,6 +624,9 @@ onBeforeUnmount(() => {
             </button>
             <button type="button" class="ghost-button" @click="cycleBackground">
               切换背景 · {{ currentBackgroundLabel }}
+            </button>
+            <button type="button" class="ghost-button" @click="toggleChatPanel">
+              {{ showChatPanel ? '隐藏对话' : '显示对话' }}
             </button>
             <button type="button" class="ghost-button" @click="toggleControlDock">
               {{ showControlPanel ? '隐藏控制' : '显示控制' }}
