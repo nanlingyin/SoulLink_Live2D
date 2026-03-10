@@ -38,6 +38,7 @@ const mobileTab = ref('chat');
 
 const showControlPanel = ref(true);
 const showChatPanel = ref(true);
+const showSystemInfo = ref(true);
 const showSettings = ref(false);
 
 const backgroundOptions = ref([]);
@@ -430,6 +431,10 @@ function toggleChatPanel() {
   }, 350);
 }
 
+function toggleSystemInfo() {
+  showSystemInfo.value = !showSystemInfo.value;
+}
+
 function setLanguage(nextLanguage) {
   if (window.I18N && typeof window.I18N.setLanguage === 'function') {
     window.I18N.setLanguage(nextLanguage);
@@ -631,10 +636,13 @@ onBeforeUnmount(() => {
             <button type="button" class="ghost-button" @click="toggleControlDock">
               {{ showControlPanel ? '隐藏控制' : '显示控制' }}
             </button>
+            <button type="button" class="ghost-button" @click="toggleSystemInfo">
+              {{ showSystemInfo ? '隐藏信息' : '显示信息' }}
+            </button>
           </div>
         </div>
 
-        <div id="system-info" class="system-info-card"></div>
+        <div id="system-info" class="system-info-card" v-show="showSystemInfo"></div>
       </section>
 
       <aside

@@ -1,5 +1,5 @@
 // ============================================
-// EmotionSync - AI 驱动的 Live2D 表情控制系统
+// SoulLink Live2D - AI 驱动的 Live2D 表情控制系统
 // 通用版本 - 自动适配任意 Live2D 模型
 // 版本: 2.0.1 - 滚轮缩放修复
 // ============================================
@@ -220,7 +220,7 @@ function renderSystemInfo() {
             : t('system.connection.waiting', 'Waiting');
 
     systemInfo.innerHTML = `
-        <strong>EmotionSync</strong> - ${t('system.title', 'AI-driven Live2D expression control')}<br>
+        <strong>SoulLink Live2D</strong> - ${t('system.title', 'AI-driven Live2D expression control')}<br>
         ${t('system.model', 'Model')}: <code>${systemInfoState.modelName || '-'}</code><br>
         ${t('system.connection', 'Connection')}: <code>${connectionText}</code><br>
         ${t('system.api', 'API')}: <code>${systemInfoState.apiProvider || '-'}</code>
@@ -363,7 +363,7 @@ async function initLive2D() {
         systemInfoState.connection = false;
         renderSystemInfo();
 
-        console.log('EmotionSync initialization complete');
+        console.log('SoulLink Live2D initialization complete');
 
     } catch (error) {
         console.error('加载 Live2D 模型失败:', error);
@@ -682,17 +682,12 @@ function generateControlPanel() {
         panel.style.display = 'none';
         return;
     }
-    
+
     panel.innerHTML = `<h3>${t('controls.expression_panel_title', 'Expression Controls')}: ${modelConfig.name || 'Live2D'}</h3>`;
-    
+
     const presetDiv = document.createElement('div');
     presetDiv.className = 'preset-buttons';
     presetDiv.innerHTML = `
-        <button onclick="applyLocalExpression('happy')">${t('controls.preset.happy', 'Happy')}</button>
-        <button onclick="applyLocalExpression('sad')">${t('controls.preset.sad', 'Sad')}</button>
-        <button onclick="applyLocalExpression('surprised')">${t('controls.preset.surprised', 'Surprised')}</button>
-        <button onclick="applyLocalExpression('shy')">${t('controls.preset.shy', 'Shy')}</button>
-        <button onclick="applyLocalExpression('angry')">${t('controls.preset.angry', 'Angry')}</button>
         <button onclick="resetExpression()">${t('controls.preset.reset', 'Reset')}</button>
     `;
     panel.appendChild(presetDiv);
@@ -919,7 +914,7 @@ function updateSliderUI(paramId, value) {
 }
 
 function debugModel() {
-    console.log('=== EmotionSync 调试信息 ===');
+    console.log('=== SoulLink Live2D 调试信息 ===');
     console.log('配置:', window.EmotionSyncConfig);
     console.log('模型名称:', modelConfig.name);
     console.log('参数数量:', Object.keys(modelConfig.parameters).length);
@@ -997,7 +992,7 @@ async function loadModelFromServer(modelInfo) {
     loading.style.display = 'block';
     loading.style.color = 'white';
     loading.innerHTML = `
-        <div>EmotionSync</div>
+        <div>SoulLink Live2D</div>
         <div style="margin-top: 10px; font-size: 14px;">${t('loading.model', 'Loading model...')} ${modelInfo.name}</div>
     `;
     
