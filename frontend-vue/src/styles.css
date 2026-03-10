@@ -531,6 +531,16 @@ input {
   padding: 0.36rem 0.76rem;
   font-size: 0.78rem;
   cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.control-panel .preset-buttons button:hover {
+  background: rgba(60, 197, 231, 0.2);
+  border-color: rgba(60, 197, 231, 0.5);
+}
+
+.control-panel .preset-buttons button:active {
+  background: rgba(60, 197, 231, 0.35);
 }
 
 .control-panel .param-group {
@@ -581,6 +591,122 @@ input {
 
 .control-panel-shell.hidden {
   display: none;
+}
+
+/* === 可折叠区域 === */
+.collapsible-section {
+  margin-bottom: 0.7rem;
+  border: 1px solid rgba(175, 218, 243, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  background: rgba(12, 35, 54, 0.6);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e5f7ff;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.collapsible-header:hover {
+  background: rgba(20, 55, 80, 0.7);
+}
+
+.collapsible-arrow {
+  display: inline-block;
+  font-size: 0.65rem;
+  transition: transform 0.25s ease;
+}
+
+.collapsible-section.open > .collapsible-header .collapsible-arrow {
+  transform: rotate(90deg);
+}
+
+.collapsible-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 0.7rem;
+}
+
+.collapsible-section.open > .collapsible-content {
+  max-height: 2000px;
+  padding: 0.5rem 0.7rem;
+}
+
+/* === 位置控制 === */
+.pos-control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+
+.pos-control-row label {
+  min-width: 36px;
+  font-size: 0.78rem;
+  color: rgba(214, 236, 248, 0.86);
+  flex-shrink: 0;
+}
+
+.drag-input-wrap {
+  flex: 1;
+}
+
+.drag-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 0.5rem;
+  background: rgba(12, 35, 54, 0.84);
+  border: 1px solid rgba(176, 222, 245, 0.25);
+  border-radius: 4px;
+  color: rgba(198, 238, 255, 0.95);
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.8rem;
+  cursor: ew-resize;
+  transition: border-color 0.2s;
+  -moz-appearance: textfield;
+}
+
+.drag-input::-webkit-inner-spin-button,
+.drag-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.drag-input:focus {
+  outline: none;
+  border-color: rgba(60, 197, 231, 0.7);
+  cursor: text;
+}
+
+.drag-input.dragging {
+  border-color: rgba(60, 197, 231, 0.9);
+  background: rgba(20, 50, 75, 0.9);
+}
+
+.pos-reset-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(176, 222, 245, 0.25);
+  background: rgba(12, 35, 54, 0.84);
+  color: var(--text-primary);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.pos-reset-btn:hover {
+  background: rgba(60, 197, 231, 0.2);
 }
 
 .mobile-tabs {

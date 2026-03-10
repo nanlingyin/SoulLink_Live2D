@@ -38,7 +38,7 @@ const mobileTab = ref('chat');
 
 const showControlPanel = ref(true);
 const showChatPanel = ref(true);
-const showSystemInfo = ref(true);
+const showSystemInfo = ref(false);
 const showSettings = ref(false);
 
 const backgroundOptions = ref([]);

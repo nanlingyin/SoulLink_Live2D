@@ -676,8 +676,7 @@ function getAvailableParameters() {
 function generateControlPanel() {
     const panel = document.getElementById('control-panel');
     if (!panel) return;
-    
-    // 根据配置决定是否显示
+
     if (!getConfig('ui.showControlPanel', true)) {
         panel.style.display = 'none';
         return;
@@ -691,51 +690,201 @@ function generateControlPanel() {
         <button onclick="resetExpression()">${t('controls.preset.reset', 'Reset')}</button>
     `;
     panel.appendChild(presetDiv);
-    
+
+    // === 位置控制栏目 ===
+    panel.appendChild(createPositionControlSection());
+
+    // === 表情参数栏目（可折叠） ===
     const showPhysicsParams = getConfig('ui.showPhysicsParams', false);
     const groupedParams = {};
-    
+
     for (const [paramId, paramInfo] of Object.entries(modelConfig.parameters)) {
         if (!showPhysicsParams && isPhysicsParam(paramId)) continue;
-        
         const groupId = paramInfo.groupId || 'other';
-        if (!groupedParams[groupId]) {
-            groupedParams[groupId] = [];
-        }
+        if (!groupedParams[groupId]) groupedParams[groupId] = [];
         groupedParams[groupId].push(paramInfo);
     }
-    
+
     for (const [groupId, params] of Object.entries(groupedParams)) {
         const groupName = modelConfig.parameterGroups[groupId]?.name || getGroupDisplayName(groupId);
-        
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'param-group';
-        groupDiv.innerHTML = `<h4>${groupName}</h4>`;
-        
+        const section = createCollapsibleSection(groupName, false);
+
         for (const param of params) {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'param-item';
-            
             const defaultValue = param.default ?? 0;
             const step = (param.max - param.min) <= 2 ? 0.01 : 0.1;
-            
             itemDiv.innerHTML = `
                 <label>${param.name} <span class="param-value" id="val-${param.id}">${defaultValue.toFixed(2)}</span></label>
-                <input type="range" 
+                <input type="range"
                        id="slider-${param.id}"
-                       min="${param.min}" 
-                       max="${param.max}" 
-                       step="${step}" 
+                       min="${param.min}" max="${param.max}" step="${step}"
                        value="${defaultValue}"
                        onchange="setParameter('${param.id}', this.value)"
                        oninput="setParameter('${param.id}', this.value)">
             `;
-            
-            groupDiv.appendChild(itemDiv);
+            section.content.appendChild(itemDiv);
         }
-        
-        panel.appendChild(groupDiv);
+
+        panel.appendChild(section.wrapper);
     }
+}
+
+// ============================================
+// 可折叠区域组件
+// ============================================
+
+function createCollapsibleSection(title, defaultOpen = true) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'collapsible-section';
+    if (defaultOpen) wrapper.classList.add('open');
+
+    const header = document.createElement('div');
+    header.className = 'collapsible-header';
+    header.innerHTML = `<span class="collapsible-arrow">▶</span><span>${title}</span>`;
+
+    const content = document.createElement('div');
+    content.className = 'collapsible-content';
+
+    header.addEventListener('click', () => {
+        wrapper.classList.toggle('open');
+    });
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(content);
+    return { wrapper, content };
+}
+
+// ============================================
+// 位置控制
+// ============================================
+
+function createPositionControlSection() {
+    const section = createCollapsibleSection(t('controls.position_title', '位置控制'), true);
+
+    const fields = [
+        { id: 'pos-x', label: 'X', step: 1 },
+        { id: 'pos-y', label: 'Y', step: 1 },
+        { id: 'pos-scale', label: t('controls.scale', '缩放'), step: 0.01 },
+        { id: 'pos-rotation', label: t('controls.rotation', '旋转°'), step: 1 },
+    ];
+
+    for (const field of fields) {
+        const row = document.createElement('div');
+        row.className = 'pos-control-row';
+        row.innerHTML = `
+            <label>${field.label}</label>
+            <div class="drag-input-wrap">
+                <input type="number" id="${field.id}" step="${field.step}" value="0"
+                       class="drag-input" data-step="${field.step}">
+            </div>
+        `;
+        section.content.appendChild(row);
+    }
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'pos-reset-btn';
+    resetBtn.textContent = t('controls.preset.reset', 'Reset');
+    resetBtn.addEventListener('click', () => {
+        resetModel();
+        syncPositionControlsFromModel();
+    });
+    section.content.appendChild(resetBtn);
+
+    // 初始化拖拽输入和值同步
+    setTimeout(() => {
+        initDragInputs();
+        initPositionInputListeners();
+        syncPositionControlsFromModel();
+    }, 0);
+
+    return section.wrapper;
+}
+
+function syncPositionControlsFromModel() {
+    const m = window.model;
+    if (!m) return;
+    const posX = document.getElementById('pos-x');
+    const posY = document.getElementById('pos-y');
+    const posScale = document.getElementById('pos-scale');
+    const posRotation = document.getElementById('pos-rotation');
+    if (posX) posX.value = Math.round(m.x);
+    if (posY) posY.value = Math.round(m.y);
+    if (posScale) posScale.value = m.scale.x.toFixed(2);
+    if (posRotation) posRotation.value = Math.round((m.angle || 0));
+}
+
+function initPositionInputListeners() {
+    const posX = document.getElementById('pos-x');
+    const posY = document.getElementById('pos-y');
+    const posScale = document.getElementById('pos-scale');
+    const posRotation = document.getElementById('pos-rotation');
+
+    const apply = () => {
+        const m = window.model;
+        if (!m) return;
+        if (posX) m.x = parseFloat(posX.value) || 0;
+        if (posY) m.y = parseFloat(posY.value) || 0;
+        if (posScale) {
+            const s = parseFloat(posScale.value) || 0.1;
+            m.scale.set(s);
+        }
+        if (posRotation) m.angle = parseFloat(posRotation.value) || 0;
+    };
+
+    [posX, posY, posScale, posRotation].forEach(el => {
+        if (!el) return;
+        el.addEventListener('input', apply);
+        el.addEventListener('change', apply);
+    });
+}
+
+// ============================================
+// 拖拽输入框（按住左右拖动调整数值）
+// ============================================
+
+function initDragInputs() {
+    document.querySelectorAll('.drag-input').forEach(input => {
+        if (input._dragBound) return;
+        input._dragBound = true;
+
+        let dragging = false;
+        let startX = 0;
+        let startVal = 0;
+        const step = parseFloat(input.dataset.step) || 1;
+
+        input.addEventListener('mousedown', (e) => {
+            // 如果输入框已聚焦（用户在编辑），不启动拖拽
+            if (document.activeElement === input) return;
+            e.preventDefault();
+            dragging = true;
+            startX = e.clientX;
+            startVal = parseFloat(input.value) || 0;
+            input.classList.add('dragging');
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            const dx = e.clientX - startX;
+            const sensitivity = step < 0.1 ? 0.5 : (step < 1 ? 1 : 2);
+            const newVal = startVal + dx * step * sensitivity;
+            input.value = step < 1 ? newVal.toFixed(2) : Math.round(newVal);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        const stopDrag = () => {
+            if (!dragging) return;
+            dragging = false;
+            input.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('mouseleave', stopDrag);
+    });
 }
 
 function isPhysicsParam(paramId) {
@@ -794,16 +943,19 @@ function enableDragging(targetModel) {
             const pos = event.data.global;
             targetModel.x = pos.x + dragOffset.x;
             targetModel.y = pos.y + dragOffset.y;
+            syncPositionControlsFromModel();
         }
     });
 
     targetModel.on('pointerup', () => {
         isDragging = false;
         targetModel.cursor = 'grab';
+        syncPositionControlsFromModel();
     });
     targetModel.on('pointerupoutside', () => {
         isDragging = false;
         targetModel.cursor = 'grab';
+        syncPositionControlsFromModel();
     });
 
     console.log('Drag support enabled');
@@ -855,11 +1007,12 @@ function enableZoom() {
             newScale -= zoomSpeed;
         }
 
-        // ?????? (0.1 ? 5 ?)
-        newScale = Math.min(Math.max(newScale, 0.1), 5.0);
+        // 不限制缩放范围
+        newScale = Math.max(newScale, 0.01);
 
         // 应用缩放
         currentModel.scale.set(newScale);
+        syncPositionControlsFromModel();
 
         console.log(`🔍 缩放完成: ${newScale.toFixed(2)}`);
     };
@@ -889,9 +1042,12 @@ function resetModel() {
     // 重置缩放
     currentModel.scale.set(scale);
 
-    // ???????
+    // 重置位置
     currentModel.x = container.clientWidth / 2;
     currentModel.y = container.clientHeight / 2;
+
+    // 重置旋转
+    currentModel.angle = 0;
 
     console.log('?? ?????: ????, ??=' + scale.toFixed(3));
 }
@@ -969,6 +1125,7 @@ window.refreshControlPanelLanguage = () => {
 window.updateSliderUI = updateSliderUI;
 window.debugModel = debugModel;
 window.resetModel = resetModel;
+window.syncPositionControlsFromModel = syncPositionControlsFromModel;
 window.toggleBackground = toggleBackground;
 window.toggleControlPanel = toggleControlPanel;
 window.initLive2D = initLive2D;
