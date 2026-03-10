@@ -11,6 +11,7 @@ let app = null;
 let model = null;
 let currentBgIndex = 0;
 let controlPanelVisible = true;
+let bgSprite = null;  // PIXI 背景精灵
 
 // 模型配置（自动从 cdi3.json 加载）
 let modelConfig = {
@@ -694,7 +695,9 @@ function generateControlPanel() {
     // === 位置控制栏目 ===
     panel.appendChild(createPositionControlSection());
 
-    // === 表情参数栏目（可折叠） ===
+    // === 表情控制（顶级可折叠，包含所有参数组） ===
+    const expressionSection = createCollapsibleSection(t('controls.expression_section', '表情控制'), false);
+
     const showPhysicsParams = getConfig('ui.showPhysicsParams', false);
     const groupedParams = {};
 
@@ -707,7 +710,7 @@ function generateControlPanel() {
 
     for (const [groupId, params] of Object.entries(groupedParams)) {
         const groupName = modelConfig.parameterGroups[groupId]?.name || getGroupDisplayName(groupId);
-        const section = createCollapsibleSection(groupName, false);
+        const subSection = createCollapsibleSection(groupName, false);
 
         for (const param of params) {
             const itemDiv = document.createElement('div');
@@ -723,11 +726,16 @@ function generateControlPanel() {
                        onchange="setParameter('${param.id}', this.value)"
                        oninput="setParameter('${param.id}', this.value)">
             `;
-            section.content.appendChild(itemDiv);
+            subSection.content.appendChild(itemDiv);
         }
 
-        panel.appendChild(section.wrapper);
+        expressionSection.content.appendChild(subSection.wrapper);
     }
+
+    panel.appendChild(expressionSection.wrapper);
+
+    // === 试验性功能（顶级可折叠） ===
+    panel.appendChild(createExperimentalSection());
 }
 
 // ============================================
@@ -885,6 +893,233 @@ function initDragInputs() {
         document.addEventListener('mouseup', stopDrag);
         document.addEventListener('mouseleave', stopDrag);
     });
+}
+
+// ============================================
+// 试验性功能 - 背景上传与控制
+// ============================================
+
+function createExperimentalSection() {
+    const section = createCollapsibleSection(t('controls.experimental', '试验性功能'), true);
+
+    // 背景上传按钮
+    const uploadRow = document.createElement('div');
+    uploadRow.className = 'bg-upload-row';
+    uploadRow.innerHTML = `
+        <input type="file" id="bg-upload-input" accept="image/*" style="display:none">
+        <button class="bg-upload-btn" id="bg-upload-btn">${t('controls.upload_bg', '上传背景')}</button>
+        <button class="bg-remove-btn" id="bg-remove-btn" style="display:none">${t('controls.remove_bg', '移除背景')}</button>
+    `;
+    section.content.appendChild(uploadRow);
+
+    // 背景控制子栏目
+    const bgControlSection = createCollapsibleSection(t('controls.bg_controls', '背景控制'), true);
+    const bgFields = [
+        { id: 'bg-x', label: 'X', step: 1 },
+        { id: 'bg-y', label: 'Y', step: 1 },
+        { id: 'bg-scale', label: t('controls.scale', '缩放'), step: 0.01 },
+    ];
+
+    for (const field of bgFields) {
+        const row = document.createElement('div');
+        row.className = 'pos-control-row';
+        row.innerHTML = `
+            <label>${field.label}</label>
+            <div class="drag-input-wrap">
+                <input type="number" id="${field.id}" step="${field.step}" value="0"
+                       class="drag-input" data-step="${field.step}">
+            </div>
+        `;
+        bgControlSection.content.appendChild(row);
+    }
+
+    const bgResetBtn = document.createElement('button');
+    bgResetBtn.className = 'pos-reset-btn';
+    bgResetBtn.textContent = t('controls.reset_bg', '重置背景位置');
+    bgResetBtn.addEventListener('click', () => resetBgPosition());
+    bgControlSection.content.appendChild(bgResetBtn);
+
+    section.content.appendChild(bgControlSection.wrapper);
+
+    // 延迟绑定事件
+    setTimeout(() => {
+        const fileInput = document.getElementById('bg-upload-input');
+        const uploadBtn = document.getElementById('bg-upload-btn');
+        const removeBtn = document.getElementById('bg-remove-btn');
+
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleBgUpload(file);
+        });
+        removeBtn.addEventListener('click', () => removeBgSprite());
+
+        initBgControlListeners();
+        initDragInputs(); // 重新绑定新增的 drag-input
+    }, 0);
+
+    return section.wrapper;
+}
+
+function handleBgUpload(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        createBgSprite(dataUrl);
+    };
+    reader.readAsDataURL(file);
+}
+
+function createBgSprite(dataUrl) {
+    if (!app) return;
+
+    // 移除旧背景
+    if (bgSprite) {
+        app.stage.removeChild(bgSprite);
+        bgSprite.destroy();
+        bgSprite = null;
+    }
+
+    const texture = PIXI.Texture.from(dataUrl);
+    bgSprite = new PIXI.Sprite(texture);
+    bgSprite.anchor.set(0.5, 0.5);
+
+    // 等纹理加载完成后设置尺寸
+    const onLoaded = () => {
+        const container = document.getElementById('live2d-container');
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+
+        // 默认 cover 适配
+        const scaleX = cw / bgSprite.texture.width;
+        const scaleY = ch / bgSprite.texture.height;
+        const fitScale = Math.max(scaleX, scaleY);
+        bgSprite.scale.set(fitScale);
+        bgSprite.x = cw / 2;
+        bgSprite.y = ch / 2;
+
+        syncBgControlsFromSprite();
+    };
+
+    if (texture.baseTexture.valid) {
+        onLoaded();
+    } else {
+        texture.baseTexture.on('loaded', onLoaded);
+    }
+
+    bgSprite.interactive = true;
+    bgSprite.buttonMode = true;
+    bgSprite.cursor = 'grab';
+    enableBgDragging(bgSprite);
+
+    // 插入到最底层（模型之前）
+    app.stage.addChildAt(bgSprite, 0);
+
+    // 让 PIXI 背景不透明，关闭 transparent
+    app.renderer.backgroundAlpha = 0;
+
+    // 显示移除按钮
+    const removeBtn = document.getElementById('bg-remove-btn');
+    if (removeBtn) removeBtn.style.display = '';
+}
+
+function removeBgSprite() {
+    if (bgSprite && app) {
+        app.stage.removeChild(bgSprite);
+        bgSprite.destroy();
+        bgSprite = null;
+    }
+    const removeBtn = document.getElementById('bg-remove-btn');
+    if (removeBtn) removeBtn.style.display = 'none';
+
+    // 清空控制值
+    const bgX = document.getElementById('bg-x');
+    const bgY = document.getElementById('bg-y');
+    const bgScale = document.getElementById('bg-scale');
+    if (bgX) bgX.value = 0;
+    if (bgY) bgY.value = 0;
+    if (bgScale) bgScale.value = 0;
+}
+
+function enableBgDragging(sprite) {
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    sprite.on('pointerdown', (event) => {
+        isDragging = true;
+        sprite.cursor = 'grabbing';
+        const pos = event.data.global;
+        dragOffset.x = sprite.x - pos.x;
+        dragOffset.y = sprite.y - pos.y;
+        event.stopPropagation();
+    });
+
+    sprite.on('pointermove', (event) => {
+        if (isDragging) {
+            const pos = event.data.global;
+            sprite.x = pos.x + dragOffset.x;
+            sprite.y = pos.y + dragOffset.y;
+            syncBgControlsFromSprite();
+        }
+    });
+
+    sprite.on('pointerup', () => {
+        isDragging = false;
+        sprite.cursor = 'grab';
+        syncBgControlsFromSprite();
+    });
+    sprite.on('pointerupoutside', () => {
+        isDragging = false;
+        sprite.cursor = 'grab';
+        syncBgControlsFromSprite();
+    });
+}
+
+function syncBgControlsFromSprite() {
+    if (!bgSprite) return;
+    const bgX = document.getElementById('bg-x');
+    const bgY = document.getElementById('bg-y');
+    const bgScale = document.getElementById('bg-scale');
+    if (bgX) bgX.value = Math.round(bgSprite.x);
+    if (bgY) bgY.value = Math.round(bgSprite.y);
+    if (bgScale) bgScale.value = bgSprite.scale.x.toFixed(2);
+}
+
+function initBgControlListeners() {
+    const bgX = document.getElementById('bg-x');
+    const bgY = document.getElementById('bg-y');
+    const bgScale = document.getElementById('bg-scale');
+
+    const apply = () => {
+        if (!bgSprite) return;
+        if (bgX) bgSprite.x = parseFloat(bgX.value) || 0;
+        if (bgY) bgSprite.y = parseFloat(bgY.value) || 0;
+        if (bgScale) {
+            const s = parseFloat(bgScale.value) || 0.1;
+            bgSprite.scale.set(s);
+        }
+    };
+
+    [bgX, bgY, bgScale].forEach(el => {
+        if (!el) return;
+        el.addEventListener('input', apply);
+        el.addEventListener('change', apply);
+    });
+}
+
+function resetBgPosition() {
+    if (!bgSprite || !app) return;
+    const container = document.getElementById('live2d-container');
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+
+    const scaleX = cw / bgSprite.texture.width;
+    const scaleY = ch / bgSprite.texture.height;
+    const fitScale = Math.max(scaleX, scaleY);
+    bgSprite.scale.set(fitScale);
+    bgSprite.x = cw / 2;
+    bgSprite.y = ch / 2;
+    syncBgControlsFromSprite();
 }
 
 function isPhysicsParam(paramId) {
@@ -1129,6 +1364,8 @@ window.syncPositionControlsFromModel = syncPositionControlsFromModel;
 window.toggleBackground = toggleBackground;
 window.toggleControlPanel = toggleControlPanel;
 window.initLive2D = initLive2D;
+window.removeBgSprite = removeBgSprite;
+window.resetBgPosition = resetBgPosition;
 
 // ============================================
 // 从服务器加载模型

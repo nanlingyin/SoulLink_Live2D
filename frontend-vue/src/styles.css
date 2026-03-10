@@ -709,6 +709,45 @@ input {
   background: rgba(60, 197, 231, 0.2);
 }
 
+/* === 背景上传与控制 === */
+.bg-upload-row {
+  display: flex;
+  gap: 0.46rem;
+  margin-bottom: 0.7rem;
+}
+
+.bg-upload-btn,
+.bg-remove-btn {
+  flex: 1;
+  padding: 0.42rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.bg-upload-btn {
+  border: 1px dashed rgba(75, 208, 226, 0.45);
+  background: rgba(12, 35, 54, 0.84);
+  color: var(--accent);
+}
+
+.bg-upload-btn:hover {
+  background: rgba(60, 197, 231, 0.15);
+  border-color: rgba(75, 208, 226, 0.7);
+}
+
+.bg-remove-btn {
+  border: 1px solid rgba(255, 107, 118, 0.35);
+  background: rgba(12, 35, 54, 0.84);
+  color: var(--danger);
+}
+
+.bg-remove-btn:hover {
+  background: rgba(255, 107, 118, 0.15);
+  border-color: rgba(255, 107, 118, 0.6);
+}
+
 .mobile-tabs {
   display: none;
 }
