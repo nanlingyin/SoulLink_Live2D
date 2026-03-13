@@ -9,6 +9,14 @@ const LEGACY_SCRIPTS = [
   '/legacy/js/services/i18n.js',
   '/legacy/js/services/asr.js',
   '/legacy/js/services/tts.js',
+  '/legacy/js/live2d/shared-state.js',
+  '/legacy/js/live2d/helpers.js',
+  '/legacy/js/live2d/idle-motion.js',
+  '/legacy/js/live2d/param-control.js',
+  '/legacy/js/live2d/model-loader.js',
+  '/legacy/js/live2d/control-panel.js',
+  '/legacy/js/live2d/background.js',
+  '/legacy/js/live2d/interaction.js',
   '/legacy/js/live2d/loader.js',
   '/legacy/js/services/expression.js'
 ];
