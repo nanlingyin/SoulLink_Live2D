@@ -121,3 +121,21 @@ class VoiceConfig:
 
     asr: Optional[ASRConfig] = None
     tts: Optional[TTSConfig] = None
+
+
+@dataclass
+class ImageGenConfig:
+    """Image generation API config (experimental)."""
+
+    provider: str = "openai"
+    api_key: str = ""
+    base_url: str = ""
+    model: str = ""
+    temperature: float = 0
+
+
+@dataclass
+class ExperimentalConfig:
+    """Experimental features config."""
+
+    image_gen: Optional[ImageGenConfig] = None

@@ -51,10 +51,36 @@ function createBgSprite(dataUrl) {
         syncBgControlsFromSprite();
     };
 
-    if (texture.baseTexture.valid) {
+    // 前景精灵同步 + 环境光照分析（纹理加载后执行）
+    const onForegroundSync = () => {
+        if (typeof updateForegroundSprite === 'function') {
+            updateForegroundSprite(
+                PIXI.Texture.from(dataUrl),
+                bgSprite.width,
+                bgSprite.height
+            );
+            syncForegroundToBackground();
+        }
+        // 如果当前有遮罩模式，重新应用
+        if (occlusionMode === 'polygon') {
+            redrawOcclusionMask(true);
+        }
+        // 触发环境光照分析
+        if (ambientLightingPlugin && ambientLightingPlugin.enabled) {
+            const src = bgSprite.texture.baseTexture.resource?.source;
+            if (src) ambientLightingPlugin.analyzeBackground(src);
+        }
+    };
+
+    const onFullLoaded = () => {
         onLoaded();
+        onForegroundSync();
+    };
+
+    if (texture.baseTexture.valid) {
+        onFullLoaded();
     } else {
-        texture.baseTexture.on('loaded', onLoaded);
+        texture.baseTexture.on('loaded', onFullLoaded);
     }
 
     bgSprite.interactive = true;
@@ -92,6 +118,20 @@ function removeBgSprite() {
     if (bgX) bgX.value = 0;
     if (bgY) bgY.value = 0;
     if (bgScale) bgScale.value = 0;
+
+    // 清理前景精灵和遮罩
+    if (foregroundSprite && app) {
+        app.stage.removeChild(foregroundSprite);
+        foregroundSprite.destroy();
+        foregroundSprite = null;
+    }
+    if (typeof disableOcclusion === 'function') {
+        disableOcclusion();
+    }
+    // 停止环境光照分析
+    if (ambientLightingPlugin && ambientLightingPlugin.enabled) {
+        ambientLightingPlugin.disable();
+    }
 }
 
 /**
@@ -116,6 +156,9 @@ function enableBgDragging(sprite) {
             sprite.x = pos.x + dragOffset.x;
             sprite.y = pos.y + dragOffset.y;
             syncBgControlsFromSprite();
+            if (typeof syncForegroundToBackground === 'function') {
+                syncForegroundToBackground();
+            }
         }
     });
 
@@ -160,6 +203,9 @@ function initBgControlListeners() {
             const s = parseFloat(bgScale.value) || 0.1;
             bgSprite.scale.set(s);
         }
+        if (typeof syncForegroundToBackground === 'function') {
+            syncForegroundToBackground();
+        }
     };
 
     [bgX, bgY, bgScale].forEach(el => {
@@ -185,6 +231,9 @@ function resetBgPosition() {
     bgSprite.x = cw / 2;
     bgSprite.y = ch / 2;
     syncBgControlsFromSprite();
+    if (typeof syncForegroundToBackground === 'function') {
+        syncForegroundToBackground();
+    }
 }
 
 // ============================================

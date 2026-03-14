@@ -75,6 +75,15 @@ const formData = ref({
         mouthOpenIntensity: 0.6
       }
     }
+  },
+  experimental: {
+    imageGen: {
+      provider: 'openai',
+      apiKey: '',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      temperature: 0
+    }
   }
 });
 
@@ -500,6 +509,38 @@ onMounted(() => {
                 <label>口型同步 - 嘴巴开合幅度 (0.0 - 1.0)</label>
                 <input v-model.number="formData.voice.tts.lipSync.mouthOpenIntensity" type="number" step="0.05" min="0" max="1" />
                 <small style="color: #aaa; font-size: 0.85em; margin-top: 4px; display: block;">推荐值: 0.5-0.8 为较自然的开合幅度</small>
+              </div>
+            </div>
+          </section>
+
+          <!-- 实验性功能配置 -->
+          <section class="config-section">
+            <h3>实验性功能</h3>
+            <div class="subsection">
+              <h4>AI 图像生成 (用于前景蒙版提取)</h4>
+              <div class="form-group">
+                <label>提供商</label>
+                <select v-model="formData.experimental.imageGen.provider">
+                  <option value="openai">OpenAI</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Base URL</label>
+                <input v-model="formData.experimental.imageGen.baseUrl" type="text" placeholder="https://api.openai.com/v1" />
+              </div>
+              <div class="form-group">
+                <label>API Key</label>
+                <input v-model="formData.experimental.imageGen.apiKey" type="password" />
+              </div>
+              <div class="form-group">
+                <label>模型</label>
+                <input v-model="formData.experimental.imageGen.model" type="text" placeholder="gpt-4o" />
+              </div>
+              <div class="form-group">
+                <label>Temperature</label>
+                <input v-model.number="formData.experimental.imageGen.temperature" type="number" step="0.1" min="0" max="2" />
               </div>
             </div>
           </section>

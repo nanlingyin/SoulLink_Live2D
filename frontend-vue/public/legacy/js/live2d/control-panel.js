@@ -233,6 +233,367 @@ function initDragInputs() {
 }
 
 /**
+ * 创建遮罩控制区域
+ */
+function createOcclusionControlSection() {
+    const section = createCollapsibleSection('遮罩控制', false);
+
+    // 模式切换
+    const modeRow = document.createElement('div');
+    modeRow.className = 'param-item';
+    modeRow.innerHTML = `
+        <label>遮罩模式</label>
+        <select id="occlusion-mode-select" style="width:100%;">
+            <option value="none">无遮罩</option>
+            <option value="polygon">多边形蒙版</option>
+            <option value="ai">AI 蒙版</option>
+        </select>
+    `;
+    section.content.appendChild(modeRow);
+
+    // 多边形模式控制
+    const polyControls = document.createElement('div');
+    polyControls.id = 'polygon-mask-controls';
+    polyControls.style.display = 'none';
+    polyControls.innerHTML = `
+        <div class="param-item">
+            <label>节点数量 <span id="node-count-val">12</span></label>
+            <input type="range" id="node-count-slider" min="3" max="60" step="1" value="12">
+        </div>
+        <div class="param-item">
+            <label>垂直偏移 <span id="mask-offset-val">0</span></label>
+            <input type="range" id="mask-offset-slider" min="-300" max="300" step="1" value="0">
+        </div>
+        <div class="param-item checkbox-group">
+            <label><input type="checkbox" id="mask-show-handles" checked> 显示节点</label>
+            <label><input type="checkbox" id="mask-show-line" checked> 显示轮廓</label>
+        </div>
+        <div class="param-item checkbox-group">
+            <label><input type="checkbox" id="mask-enable-drag"> 蒙版拖拽</label>
+            <label><input type="checkbox" id="mask-add-node-mode"> 添加节点</label>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <button id="mask-auto-estimate-btn" class="pos-reset-btn" style="flex:1;">自动估计</button>
+            <button id="mask-reset-btn" class="pos-reset-btn" style="flex:1;">重置</button>
+        </div>
+    `;
+    section.content.appendChild(polyControls);
+
+    // AI蒙版控制
+    const aiControls = document.createElement('div');
+    aiControls.id = 'ai-mask-controls';
+    aiControls.style.display = 'none';
+    aiControls.innerHTML = `
+        <div style="margin-bottom:8px;">
+            <button id="ai-extract-btn" class="bg-upload-btn" style="width:100%;">提取前景蒙版</button>
+            <div id="ai-mask-status" style="font-size:12px;color:#aaa;margin-top:6px;text-align:center;"></div>
+        </div>
+        <div class="param-item checkbox-group">
+            <label><input type="checkbox" id="ai-show-outline" checked> 显示轮廓线</label>
+        </div>
+    `;
+    section.content.appendChild(aiControls);
+
+    // 延迟绑定事件
+    setTimeout(() => _bindOcclusionEvents(), 0);
+
+    return section.wrapper;
+}
+
+/**
+ * 绑定遮罩控制事件
+ */
+function _bindOcclusionEvents() {
+    const modeSelect = document.getElementById('occlusion-mode-select');
+    const polyControls = document.getElementById('polygon-mask-controls');
+    const aiControls = document.getElementById('ai-mask-controls');
+
+    if (modeSelect) {
+        modeSelect.value = occlusionMode || 'none';
+        modeSelect.addEventListener('change', () => {
+            const mode = modeSelect.value;
+            polyControls.style.display = mode === 'polygon' ? '' : 'none';
+            aiControls.style.display = mode === 'ai' ? '' : 'none';
+            if (typeof enableOcclusionMode === 'function') {
+                enableOcclusionMode(mode);
+            }
+        });
+        // 初始状态
+        polyControls.style.display = occlusionMode === 'polygon' ? '' : 'none';
+        aiControls.style.display = occlusionMode === 'ai' ? '' : 'none';
+    }
+
+    // 多边形控制
+    const nodeSlider = document.getElementById('node-count-slider');
+    const nodeVal = document.getElementById('node-count-val');
+    if (nodeSlider) {
+        nodeSlider.addEventListener('input', () => {
+            nodeVal.textContent = nodeSlider.value;
+            const count = parseInt(nodeSlider.value);
+            if (occlusionState.topEdgePoints.length >= 2) {
+                occlusionState.topEdgePoints = resamplePolyline(occlusionState.topEdgePoints, count);
+                redrawOcclusionMask(true);
+            }
+        });
+    }
+
+    const offsetSlider = document.getElementById('mask-offset-slider');
+    const offsetVal = document.getElementById('mask-offset-val');
+    if (offsetSlider) {
+        offsetSlider.value = occlusionState.offsetY || 0;
+        offsetSlider.addEventListener('input', () => {
+            offsetVal.textContent = offsetSlider.value;
+            occlusionState.offsetY = parseInt(offsetSlider.value);
+            redrawOcclusionMask(false);
+        });
+    }
+
+    const showHandles = document.getElementById('mask-show-handles');
+    if (showHandles) {
+        showHandles.checked = occlusionState.showHandles;
+        showHandles.addEventListener('change', () => {
+            occlusionState.showHandles = showHandles.checked;
+            redrawOcclusionMask(false);
+        });
+    }
+
+    const showLine = document.getElementById('mask-show-line');
+    if (showLine) {
+        showLine.checked = occlusionState.showMaskLine;
+        showLine.addEventListener('change', () => {
+            occlusionState.showMaskLine = showLine.checked;
+            redrawOcclusionMask(false);
+        });
+    }
+
+    const enableDrag = document.getElementById('mask-enable-drag');
+    if (enableDrag) {
+        enableDrag.checked = occlusionState.enableMaskDrag;
+        enableDrag.addEventListener('change', () => {
+            occlusionState.enableMaskDrag = enableDrag.checked;
+            redrawOcclusionMask(false);
+        });
+    }
+
+    const addNodeMode = document.getElementById('mask-add-node-mode');
+    if (addNodeMode) {
+        addNodeMode.checked = occlusionState.addNodeMode;
+        addNodeMode.addEventListener('change', () => {
+            occlusionState.addNodeMode = addNodeMode.checked;
+        });
+    }
+
+    const autoBtn = document.getElementById('mask-auto-estimate-btn');
+    if (autoBtn) {
+        autoBtn.addEventListener('click', () => {
+            try {
+                const count = parseInt(nodeSlider?.value) || 12;
+                const edge = autoEstimateTopEdge(count);
+                occlusionState.topEdgePoints = edge;
+                redrawOcclusionMask(true);
+            } catch (e) {
+                console.warn('自动估计失败:', e.message);
+            }
+        });
+    }
+
+    const resetBtn = document.getElementById('mask-reset-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            occlusionState.topEdgePoints = [];
+            occlusionState.offsetY = 0;
+            if (offsetSlider) { offsetSlider.value = 0; offsetVal.textContent = '0'; }
+            enableOcclusionMode('polygon');
+        });
+    }
+
+    // AI蒙版
+    const aiBtn = document.getElementById('ai-extract-btn');
+    const aiStatus = document.getElementById('ai-mask-status');
+    const aiShowOutline = document.getElementById('ai-show-outline');
+
+    if (aiShowOutline) {
+        aiShowOutline.checked = occlusionState.showAIOutline;
+        aiShowOutline.addEventListener('change', () => {
+            occlusionState.showAIOutline = aiShowOutline.checked;
+            if (typeof applyAIMask === 'function' && occlusionState.extractedMaskTexture) {
+                applyAIMask();
+            }
+        });
+    }
+
+    if (aiBtn) {
+        aiBtn.addEventListener('click', async () => {
+            if (!bgSprite) {
+                if (aiStatus) aiStatus.textContent = '请先上传背景图';
+                return;
+            }
+            aiBtn.disabled = true;
+            if (aiStatus) aiStatus.textContent = '提取中...';
+            try {
+                await extractAndApplyAIMask();
+                if (aiStatus) aiStatus.textContent = '蒙版已应用';
+            } catch (e) {
+                console.error('AI蒙版提取失败:', e);
+                if (aiStatus) aiStatus.textContent = '失败: ' + e.message;
+            } finally {
+                aiBtn.disabled = false;
+            }
+        });
+    }
+}
+
+// PLACEHOLDER_OCCLUSION_CONTROL_END
+
+/**
+ * 创建环境光照控制区域
+ */
+function createAmbientLightingSection() {
+    const section = createCollapsibleSection('环境光照', false);
+
+    section.content.innerHTML = `
+        <div class="param-item checkbox-group">
+            <label><input type="checkbox" id="ambient-enabled"> 启用环境光照</label>
+        </div>
+        <div id="ambient-controls" style="display:none;">
+            <div class="param-item">
+                <label>效果强度 <span id="ambient-intensity-val">0.50</span></label>
+                <input type="range" id="ambient-intensity" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="param-item">
+                <label>平滑度 <span id="ambient-smoothing-val">0.30</span></label>
+                <input type="range" id="ambient-smoothing" min="0.05" max="1" step="0.05" value="0.3">
+            </div>
+            <div class="subsection-divider" style="margin:12px 0;border-top:1px solid rgba(255,255,255,0.1);"></div>
+            <div class="param-item checkbox-group">
+                <label><input type="checkbox" id="ambient-colortemp" checked> 色温调整</label>
+            </div>
+            <div class="param-item">
+                <label>色温强度 <span id="ambient-colortemp-str-val">1.00</span></label>
+                <input type="range" id="ambient-colortemp-str" min="0" max="2" step="0.1" value="1.0">
+            </div>
+            <div class="param-item checkbox-group">
+                <label><input type="checkbox" id="ambient-brightness" checked> 亮度调整</label>
+            </div>
+            <div class="param-item">
+                <label>亮度强度 <span id="ambient-brightness-str-val">1.00</span></label>
+                <input type="range" id="ambient-brightness-str" min="0" max="2" step="0.1" value="1.0">
+            </div>
+            <div class="subsection-divider" style="margin:12px 0;border-top:1px solid rgba(255,255,255,0.1);"></div>
+            <div class="param-item checkbox-group">
+                <label><input type="checkbox" id="ambient-contrast"> 对比度增强</label>
+            </div>
+            <div class="param-item">
+                <label>对比度强度 <span id="ambient-contrast-str-val">0.30</span></label>
+                <input type="range" id="ambient-contrast-str" min="0" max="1" step="0.05" value="0.3">
+            </div>
+            <div class="param-item checkbox-group">
+                <label><input type="checkbox" id="ambient-saturation"> 饱和度增强</label>
+            </div>
+            <div class="param-item">
+                <label>饱和度强度 <span id="ambient-saturation-str-val">0.20</span></label>
+                <input type="range" id="ambient-saturation-str" min="0" max="1" step="0.05" value="0.2">
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => _bindAmbientEvents(), 0);
+
+    return section.wrapper;
+}
+
+/**
+ * 绑定环境光照事件
+ */
+function _bindAmbientEvents() {
+    const enabled = document.getElementById('ambient-enabled');
+    const controls = document.getElementById('ambient-controls');
+
+    if (enabled) {
+        enabled.addEventListener('change', () => {
+            controls.style.display = enabled.checked ? '' : 'none';
+            if (!ambientLightingPlugin) return;
+            if (enabled.checked) {
+                ambientLightingPlugin.enable();
+                // 立即分析当前背景
+                if (bgSprite) {
+                    const src = bgSprite.texture.baseTexture.resource?.source;
+                    if (src) ambientLightingPlugin.analyzeBackground(src);
+                }
+            } else {
+                ambientLightingPlugin.disable();
+            }
+        });
+    }
+
+    // 强度
+    _bindSlider('ambient-intensity', 'ambient-intensity-val', (v) => {
+        if (ambientLightingPlugin) ambientLightingPlugin.updateConfig({ intensity: v });
+    });
+    _bindSlider('ambient-smoothing', 'ambient-smoothing-val', (v) => {
+        if (ambientLightingPlugin) ambientLightingPlugin.updateConfig({ smoothing: v });
+    });
+
+    // 色温
+    const colorTemp = document.getElementById('ambient-colortemp');
+    if (colorTemp) {
+        colorTemp.addEventListener('change', () => {
+            if (ambientLightingPlugin) ambientLightingPlugin.updateConfig({ enableColorTemp: colorTemp.checked });
+        });
+    }
+    _bindSlider('ambient-colortemp-str', 'ambient-colortemp-str-val', (v) => {
+        if (ambientLightingPlugin) ambientLightingPlugin.colorTempStrength = v;
+    });
+
+    // 亮度
+    const brightness = document.getElementById('ambient-brightness');
+    if (brightness) {
+        brightness.addEventListener('change', () => {
+            if (ambientLightingPlugin) ambientLightingPlugin.updateConfig({ enableBrightness: brightness.checked });
+        });
+    }
+    _bindSlider('ambient-brightness-str', 'ambient-brightness-str-val', (v) => {
+        if (ambientLightingPlugin) ambientLightingPlugin.brightnessStrength = v;
+    });
+
+    // 对比度
+    const contrast = document.getElementById('ambient-contrast');
+    if (contrast) {
+        contrast.addEventListener('change', () => {
+            if (ambientLightingPlugin) ambientLightingPlugin.enableContrast = contrast.checked;
+        });
+    }
+    _bindSlider('ambient-contrast-str', null, (v) => {
+        if (ambientLightingPlugin) ambientLightingPlugin.contrastStrength = v;
+    });
+
+    // 饱和度
+    const saturation = document.getElementById('ambient-saturation');
+    if (saturation) {
+        saturation.addEventListener('change', () => {
+            if (ambientLightingPlugin) ambientLightingPlugin.enableSaturation = saturation.checked;
+        });
+    }
+    _bindSlider('ambient-saturation-str', null, (v) => {
+        if (ambientLightingPlugin) ambientLightingPlugin.saturationStrength = v;
+    });
+}
+
+/**
+ * 辅助：绑定 slider 的 input 事件
+ */
+function _bindSlider(sliderId, valId, onChange) {
+    const slider = document.getElementById(sliderId);
+    const valSpan = valId ? document.getElementById(valId) : null;
+    if (!slider) return;
+    slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        if (valSpan) valSpan.textContent = v.toFixed(2);
+        onChange(v);
+    });
+}
+
+/**
  * 创建试验性功能区域
  */
 function createExperimentalSection() {
@@ -276,6 +637,12 @@ function createExperimentalSection() {
     bgControlSection.content.appendChild(bgResetBtn);
 
     section.content.appendChild(bgControlSection.wrapper);
+
+    // === 遮罩控制子栏目 ===
+    section.content.appendChild(createOcclusionControlSection());
+
+    // === 环境光照控制子栏目 ===
+    section.content.appendChild(createAmbientLightingSection());
 
     // 延迟绑定事件
     setTimeout(() => {

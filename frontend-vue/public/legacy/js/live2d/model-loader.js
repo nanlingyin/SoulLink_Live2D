@@ -191,6 +191,17 @@ async function initLive2D() {
 
         window.PIXI = PIXI;
 
+        // 初始化遮罩层级和环境光照
+        initOcclusionLayers();
+        ambientLightingPlugin = new AmbientLightingPlugin({
+            updateInterval: 100,
+            intensity: 0.5,
+            smoothing: 0.3,
+            enableColorTemp: true,
+            enableBrightness: true,
+        });
+        ambientLightingPlugin.initialize(app, modelContainer);
+
         loading.textContent = t('loading.model', 'Loading model...');
 
         const modelJsonUrl = await findModel3Json(MODEL_DIR);
@@ -249,7 +260,7 @@ async function initLive2D() {
         // 暴露全局引用
         window.model = model;
 
-        app.stage.addChild(model);
+        modelContainer.addChild(model);
         extractParameterRanges();
         resetIdleMotionState();
         detectIdleMotionGroup();
@@ -307,8 +318,12 @@ async function loadModelFromServer(modelInfo) {
 
     try {
         // 如果已有模型，先移除
-        if (model && app) {
-            app.stage.removeChild(model);
+        if (model) {
+            if (modelContainer) {
+                modelContainer.removeChild(model);
+            } else if (app) {
+                app.stage.removeChild(model);
+            }
             model.destroy();
             model = null;
         }
@@ -327,6 +342,14 @@ async function loadModelFromServer(modelInfo) {
                 antialias: true
             });
             window.PIXI = PIXI;
+
+            // 初始化遮罩层级和环境光照
+            initOcclusionLayers();
+            ambientLightingPlugin = new AmbientLightingPlugin({
+                updateInterval: 100, intensity: 0.5, smoothing: 0.3,
+                enableColorTemp: true, enableBrightness: true,
+            });
+            ambientLightingPlugin.initialize(app, modelContainer);
         }
 
         // 构建模型路径 - path 已经是完整路径如 "l2d/amane.model3.json"
@@ -396,7 +419,12 @@ async function loadModelFromServer(modelInfo) {
             }
         }
 
-        app.stage.addChild(model);
+        // 添加到 modelContainer（遮罩系统需要）
+        if (modelContainer) {
+            modelContainer.addChild(model);
+        } else {
+            app.stage.addChild(model);
+        }
 
         // 提取参数范围
         parameterIndexCache = {};

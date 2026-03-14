@@ -5,8 +5,9 @@
 from pathlib import Path
 from dataclasses import asdict
 import yaml
+import base64
 
-from aiohttp import web
+from aiohttp import web, ClientSession
 import aiohttp_cors
 
 from ..config import ConfigManager
@@ -33,6 +34,9 @@ def setup_routes(app: web.Application, config: ConfigManager, ws_handler) -> Non
 
     # ASR API 路由（本地模式）
     app.router.add_post('/api/asr', create_asr_handler(ws_handler.server))
+
+    # 蒙版提取 API 路由（实验性）
+    app.router.add_post('/api/extract-mask', create_extract_mask_handler(config))
 
     # 静态文件路由
     _setup_static_routes(app, config)
@@ -92,6 +96,7 @@ async def serve_api_root(request: web.Request) -> web.Response:
                 "models": "/api/models",
                 "tts": "/api/tts",
                 "asr": "/api/asr",
+                "extract_mask": "/api/extract-mask",
                 "websocket": "/ws",
             },
         }
@@ -207,3 +212,112 @@ def create_asr_handler(server):
             return web.Response(status=500, text=str(e))
 
     return handle_asr
+
+
+EXTRACT_MASK_PROMPT = (
+    "Generate a strict black-and-white occlusion mask aligned pixel-perfect to the input photo. "
+    "Task: mark the ENTIRE tabletop plane in front of the camera as WHITE, including empty table "
+    "surface texture, table edge, and all objects resting on the table (hotpot, bowls, plates, "
+    "chopsticks, cups, food). Also mark any near-camera foreground objects as WHITE. "
+    "Mark chairs, walls, floor, and all background regions as BLACK. "
+    "Output only one flat mask image, no text, no decoration, no style transfer, no extra objects."
+)
+
+
+def create_extract_mask_handler(config: ConfigManager):
+    """创建蒙版提取代理处理器（调用外部 AI API 生成遮挡蒙版）"""
+    async def handle_extract_mask(request: web.Request) -> web.Response:
+        ig = config.experimental.image_gen
+        if not ig or not ig.api_key:
+            return web.json_response(
+                {"error": "experimental.imageGen not configured"},
+                status=400
+            )
+
+        try:
+            data = await request.json()
+            image_b64 = data.get("image", "")
+            if not image_b64:
+                return web.json_response({"error": "image is required"}, status=400)
+
+            # 构建 API 请求
+            api_url = ig.base_url.rstrip("/") + "/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {ig.api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": ig.model,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": EXTRACT_MASK_PROMPT},
+                        {"type": "image_url", "image_url": {"url": image_b64}}
+                    ]
+                }],
+                "modalities": ["text", "image"],
+                "temperature": ig.temperature,
+            }
+
+            async with ClientSession() as session:
+                async with session.post(api_url, json=payload, headers=headers, timeout=180) as resp:
+                    if resp.status != 200:
+                        err_text = await resp.text()
+                        return web.json_response(
+                            {"error": f"API error {resp.status}: {err_text[:500]}"},
+                            status=502
+                        )
+                    result = await resp.json()
+
+            # 从响应中提取蒙版图片
+            mask_data_url = _extract_image_from_response(result)
+            if not mask_data_url:
+                return web.json_response(
+                    {"error": "No mask image found in API response"},
+                    status=502
+                )
+
+            return web.json_response({"mask": mask_data_url})
+
+        except Exception as e:
+            print(f"extract-mask error: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    return handle_extract_mask
+
+
+def _extract_image_from_response(result: dict) -> str | None:
+    """从 AI API 响应中提取图片 data URI，支持多种返回格式"""
+    choices = result.get("choices", [])
+    if not choices:
+        return None
+
+    message = choices[0].get("message", {})
+    content = message.get("content")
+
+    # Format 1: content is array
+    if isinstance(content, list):
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            # image_url or input_image type
+            if part.get("type") in ("image_url", "input_image"):
+                src = part.get("image_url")
+                if isinstance(src, dict):
+                    src = src.get("url", "")
+                if isinstance(src, str) and src.startswith("data:image/"):
+                    return src
+            # output_image or image type with b64_json
+            if part.get("type") in ("output_image", "image"):
+                b64 = part.get("b64_json", "")
+                if b64:
+                    return f"data:image/png;base64,{b64}"
+
+    # Format 2: content is string with embedded data URI
+    if isinstance(content, str):
+        import re
+        match = re.search(r'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', content)
+        if match:
+            return match.group(0)
+
+    return None

@@ -54,3 +54,27 @@ const backgrounds = [
     '#000000',
     '#ffffff'
 ];
+
+// 遮罩系统状态
+let modelContainer = null;       // PIXI.Container 包裹 model
+let foregroundSprite = null;     // 前景精灵（背景副本，被蒙版裁剪）
+let occlusionMask = null;        // PIXI.Graphics 多边形蒙版
+let maskEditorLayer = null;      // 编辑器层容器
+let maskOutline = null;          // 蒙版轮廓线
+let maskDragArea = null;         // 蒙版拖拽区域
+let maskHandleNodes = [];        // 节点手柄数组
+let occlusionMode = 'none';      // 'none' | 'polygon' | 'ai'
+let occlusionState = {
+    topEdgePoints: [],            // 多边形上边缘点 [[x,y], ...]
+    offsetY: 0,                   // Y偏移
+    showHandles: true,            // 显示节点
+    showMaskLine: true,           // 显示轮廓线
+    enableMaskDrag: false,        // 启用蒙版拖拽
+    addNodeMode: false,           // 添加节点模式
+    extractedMaskTexture: null,   // AI提取的蒙版纹理
+    aiMaskSprite: null,           // AI蒙版精灵（用作 mask）
+    showAIOutline: true,          // 显示AI蒙版轮廓线
+};
+
+// 环境光照
+let ambientLightingPlugin = null;

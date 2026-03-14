@@ -9,7 +9,8 @@ from typing import Dict, Any
 
 from .models import (
     LLMConfig, APIConfig, ServerConfig, AnimationConfig, ModelConfig, UIConfig,
-    ASRLocalConfig, ASRConfig, TTSConfig, VoiceConfig
+    ASRLocalConfig, ASRConfig, TTSConfig, VoiceConfig,
+    ImageGenConfig, ExperimentalConfig
 )
 
 
@@ -27,6 +28,7 @@ class ConfigManager:
         self.model = ModelConfig()
         self.ui = UIConfig()
         self.voice = VoiceConfig()
+        self.experimental = ExperimentalConfig()
         self._raw_config: Dict[str, Any] = {}  # 保存原始配置用于前端
         self.load()
 
@@ -156,6 +158,22 @@ class ConfigManager:
                     tts=tts_config
                 )
 
+                # 加载实验性功能配置
+                exp_data = self._raw_config.get('experimental', {})
+                ig_data = exp_data.get('imageGen', {})
+                image_gen_config = None
+                if ig_data:
+                    image_gen_config = ImageGenConfig(
+                        provider=ig_data.get('provider', 'openai'),
+                        api_key=ig_data.get('apiKey', ''),
+                        base_url=ig_data.get('baseUrl', ''),
+                        model=ig_data.get('model', ''),
+                        temperature=ig_data.get('temperature', 0)
+                    )
+                self.experimental = ExperimentalConfig(
+                    image_gen=image_gen_config
+                )
+
                 print(f"✅ 配置已加载: {self.config_path}")
                 print(f"   🤖 LLM 模式: {self.llm.mode}")
                 if self.llm.mode == "local":
@@ -247,6 +265,14 @@ class ConfigManager:
                     "voice": self.voice.tts.voice if self.voice.tts else "alloy",
                     "speed": self.voice.tts.speed if self.voice.tts else 1.0
                     # 不暴露 apiKey
+                }
+            },
+            "experimental": {
+                "imageGen": {
+                    "provider": self.experimental.image_gen.provider if self.experimental.image_gen else "",
+                    "model": self.experimental.image_gen.model if self.experimental.image_gen else "",
+                    "configured": bool(self.experimental.image_gen and self.experimental.image_gen.api_key)
+                    # 不暴露 apiKey 和 baseUrl
                 }
             }
         }
