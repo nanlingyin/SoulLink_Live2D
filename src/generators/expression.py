@@ -189,6 +189,12 @@ class ExpressionGenerator(BaseGenerator):
   "duration": 过渡时间毫秒数
 }}
 
+【必须输出的参数】每次生成必须包含以下所有参数的数值（即使变化很小也要给出）：
+ParamEyeLOpen, ParamEyeROpen, ParamEyeBallX, ParamEyeBallY,
+ParamBrowLY, ParamBrowRY, ParamMouthOpenY, ParamMouthForm,
+ParamCheek, ParamAngleX, ParamAngleY, ParamAngleZ,
+ParamBodyAngleX, ParamBodyAngleY, ParamBodyAngleZ
+
 要求：
 1. 参数组合要自然且可感知，使用参数要足够多样化，避免单一参数主导的表情
 2. 眼睛、眉毛、嘴巴、头部角度可组合表达，动作要明显，面部的参数一定要非常丰富，尤其是眼睛眉毛眼球等最细节的面部表情
@@ -251,7 +257,7 @@ class ExpressionGenerator(BaseGenerator):
    - "挥手同时侧头微笑眉毛上扬" - 明确指出手部动作、头部角度、表情、眉毛状态
 3. 动作要有变化和节奏感，避免单调重复
 4. 优先使用模型特色动作（如果语音内容适合）
-5. 动作之间要有连贯性和过渡
+5. 动作之间要有连贯性和过渡，必须包含眼睛看的方向，眼睛看的参数可以适当夸张
 6. 只返回 JSON，不要额外解释
 
 注意：充分利用模型的所有参数能力，不要只使用基础的几个参数。每一帧都应该是独特且富有表现力的。

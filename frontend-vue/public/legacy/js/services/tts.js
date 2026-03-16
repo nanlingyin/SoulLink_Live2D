@@ -28,6 +28,8 @@ class TTSService {
 
         // 预生成的连续动作帧
         this.preGeneratedMotionFrames = null;
+        // 上一帧涉及的参数 ID 集合
+        this.lastFrameParamIds = new Set();
     }
 
     /**
@@ -371,24 +373,28 @@ class TTSService {
             duration: msg.duration
         });
 
-        // 先自然过渡重置所有非嘴部参数到默认值，避免上一帧参数残留
-        this._resetNonMouthParameters(400); // 400ms 过渡时间
-
-        // 延迟应用新参数，让重置动画先完成
-        setTimeout(() => {
-            const duration = msg.duration || 1600; // 2秒帧，留400ms给重置，剩余1600ms
-            if (window.transitionToExpression) {
-                window.transitionToExpression(filteredParams, duration, null, false);
-                return;
+        // 直接从当前参数过渡到下一帧，不经过默认值，保持动作连贯
+        // 上一帧有但当前帧没有的参数，补上默认值让它们自然回归
+        const availableParams = window.SoulLink?.availableParameters || {};
+        for (const paramId of this.lastFrameParamIds) {
+            if (!(paramId in filteredParams) && availableParams[paramId]) {
+                const defaultVal = Number.isFinite(availableParams[paramId].default)
+                    ? availableParams[paramId].default : 0;
+                filteredParams[paramId] = defaultVal;
             }
+        }
 
-            // Fallback to direct write.
-            if (window.setParameter) {
-                for (const [paramId, value] of Object.entries(filteredParams)) {
-                    window.setParameter(paramId, value);
-                }
+        // 记录当前帧的参数，供下一帧比对
+        this.lastFrameParamIds = new Set(Object.keys(msg.parameters || {}));
+
+        const duration = msg.duration || 2000;
+        if (window.transitionToExpression) {
+            window.transitionToExpression(filteredParams, duration, null, false);
+        } else if (window.setParameter) {
+            for (const [paramId, value] of Object.entries(filteredParams)) {
+                window.setParameter(paramId, value);
             }
-        }, 400); // 等待重置动画完成
+        }
     }
 
     _resetNonMouthParameters(transitionDuration = 400) {
