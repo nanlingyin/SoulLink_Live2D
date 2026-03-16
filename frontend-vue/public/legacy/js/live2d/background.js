@@ -86,10 +86,17 @@ function createBgSprite(dataUrl) {
     bgSprite.interactive = true;
     bgSprite.buttonMode = true;
     bgSprite.cursor = 'grab';
+    bgSprite.zIndex = -1;
     enableBgDragging(bgSprite);
 
-    // 插入到最底层（模型之前）
-    app.stage.addChildAt(bgSprite, 0);
+    // 确保背景在 modelContainer 之前渲染（最底层）
+    if (modelContainer) {
+        const idx = app.stage.getChildIndex(modelContainer);
+        app.stage.addChildAt(bgSprite, idx);
+    } else {
+        app.stage.addChildAt(bgSprite, 0);
+    }
+    app.stage.sortChildren();
 
     // 让 PIXI 背景不透明，关闭 transparent
     app.renderer.backgroundAlpha = 0;

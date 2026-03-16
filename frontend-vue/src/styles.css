@@ -748,6 +748,182 @@ input {
   border-color: rgba(255, 107, 118, 0.6);
 }
 
+/* === 遮罩控制 - 模式按钮组 === */
+.occlusion-mode-bar {
+  display: flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(175, 218, 243, 0.2);
+  margin-bottom: 0.6rem;
+}
+
+.occlusion-mode-bar .mode-btn {
+  flex: 1;
+  padding: 0.38rem 0;
+  border: none;
+  background: rgba(12, 35, 54, 0.7);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.occlusion-mode-bar .mode-btn:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: rgba(175, 218, 243, 0.15);
+}
+
+.occlusion-mode-bar .mode-btn:hover {
+  background: rgba(20, 55, 80, 0.8);
+  color: var(--text-primary);
+}
+
+.occlusion-mode-bar .mode-btn.active {
+  background: linear-gradient(135deg, rgba(47, 163, 202, 0.55), rgba(75, 208, 226, 0.4));
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* === 遮罩子面板 === */
+.occlusion-sub-panel {
+  padding-top: 0.3rem;
+}
+
+/* === 开关行 === */
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* === 操作按钮行 === */
+.action-btn-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.action-btn {
+  flex: 1;
+  padding: 0.36rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(175, 218, 243, 0.22);
+  background: rgba(12, 35, 54, 0.84);
+  color: var(--text-primary);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: rgba(60, 197, 231, 0.15);
+  border-color: rgba(75, 208, 226, 0.45);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn.accent {
+  border-color: rgba(75, 208, 226, 0.4);
+  color: var(--accent);
+}
+
+.action-btn.accent:hover {
+  background: rgba(75, 208, 226, 0.18);
+  border-color: rgba(75, 208, 226, 0.65);
+}
+
+.action-btn.danger {
+  border-color: rgba(255, 107, 118, 0.3);
+  color: var(--danger);
+}
+
+.action-btn.danger:hover {
+  background: rgba(255, 107, 118, 0.12);
+  border-color: rgba(255, 107, 118, 0.55);
+}
+
+.action-btn.full-width {
+  width: 100%;
+  flex: none;
+}
+
+/* === 状态文本 === */
+.status-text {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0.35rem 0;
+  min-height: 1em;
+}
+
+/* === 环境光照 - 2x2 网格 === */
+.ambient-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.ambient-card {
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(175, 218, 243, 0.12);
+  background: rgba(8, 24, 38, 0.6);
+}
+
+.ambient-card .toggle-row {
+  margin-bottom: 0.3rem;
+}
+
+.param-item.compact {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0;
+}
+
+.param-item.compact input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.range-val {
+  font-size: 0.7rem;
+  color: rgba(198, 238, 255, 0.8);
+  font-family: 'Space Grotesk', monospace;
+  min-width: 2.4em;
+  text-align: right;
+}
+
 .mobile-tabs {
   display: none;
 }

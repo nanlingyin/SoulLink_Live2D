@@ -151,6 +151,7 @@ function applyAIMask() {
 
     app.stage.addChild(maskSprite);
     foregroundSprite.mask = maskSprite;
+    foregroundSprite.visible = true;
     occlusionState.aiMaskSprite = maskSprite;
 
     // 绘制轮廓线（只读，不可编辑）
@@ -229,3 +230,4 @@ window.convertToGrayscaleMask = convertToGrayscaleMask;
 window.extractTopEdgeFromMaskTexture = extractTopEdgeFromMaskTexture;
 window.applyAIMask = applyAIMask;
 window.extractAndApplyAIMask = extractAndApplyAIMask;
+window._drawAIMaskOutline = _drawAIMaskOutline;

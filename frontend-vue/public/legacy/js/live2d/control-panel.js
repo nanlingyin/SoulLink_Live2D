@@ -238,22 +238,20 @@ function initDragInputs() {
 function createOcclusionControlSection() {
     const section = createCollapsibleSection('遮罩控制', false);
 
-    // 模式切换
+    // 模式切换（按钮组）
     const modeRow = document.createElement('div');
-    modeRow.className = 'param-item';
+    modeRow.className = 'occlusion-mode-bar';
     modeRow.innerHTML = `
-        <label>遮罩模式</label>
-        <select id="occlusion-mode-select" style="width:100%;">
-            <option value="none">无遮罩</option>
-            <option value="polygon">多边形蒙版</option>
-            <option value="ai">AI 蒙版</option>
-        </select>
+        <button class="mode-btn active" data-mode="none">关闭</button>
+        <button class="mode-btn" data-mode="polygon">多边形</button>
+        <button class="mode-btn" data-mode="ai">AI 蒙版</button>
     `;
     section.content.appendChild(modeRow);
 
     // 多边形模式控制
     const polyControls = document.createElement('div');
     polyControls.id = 'polygon-mask-controls';
+    polyControls.className = 'occlusion-sub-panel';
     polyControls.style.display = 'none';
     polyControls.innerHTML = `
         <div class="param-item">
@@ -264,17 +262,15 @@ function createOcclusionControlSection() {
             <label>垂直偏移 <span id="mask-offset-val">0</span></label>
             <input type="range" id="mask-offset-slider" min="-300" max="300" step="1" value="0">
         </div>
-        <div class="param-item checkbox-group">
-            <label><input type="checkbox" id="mask-show-handles" checked> 显示节点</label>
-            <label><input type="checkbox" id="mask-show-line" checked> 显示轮廓</label>
+        <div class="toggle-row">
+            <label class="toggle-label"><input type="checkbox" id="mask-show-handles" checked> 节点</label>
+            <label class="toggle-label"><input type="checkbox" id="mask-show-line" checked> 轮廓</label>
+            <label class="toggle-label"><input type="checkbox" id="mask-enable-drag"> 拖拽</label>
+            <label class="toggle-label"><input type="checkbox" id="mask-add-node-mode"> 加点</label>
         </div>
-        <div class="param-item checkbox-group">
-            <label><input type="checkbox" id="mask-enable-drag"> 蒙版拖拽</label>
-            <label><input type="checkbox" id="mask-add-node-mode"> 添加节点</label>
-        </div>
-        <div style="display:flex;gap:6px;margin-top:8px;">
-            <button id="mask-auto-estimate-btn" class="pos-reset-btn" style="flex:1;">自动估计</button>
-            <button id="mask-reset-btn" class="pos-reset-btn" style="flex:1;">重置</button>
+        <div class="action-btn-row">
+            <button id="mask-auto-estimate-btn" class="action-btn">自动估计</button>
+            <button id="mask-reset-btn" class="action-btn danger">重置</button>
         </div>
     `;
     section.content.appendChild(polyControls);
@@ -282,14 +278,13 @@ function createOcclusionControlSection() {
     // AI蒙版控制
     const aiControls = document.createElement('div');
     aiControls.id = 'ai-mask-controls';
+    aiControls.className = 'occlusion-sub-panel';
     aiControls.style.display = 'none';
     aiControls.innerHTML = `
-        <div style="margin-bottom:8px;">
-            <button id="ai-extract-btn" class="bg-upload-btn" style="width:100%;">提取前景蒙版</button>
-            <div id="ai-mask-status" style="font-size:12px;color:#aaa;margin-top:6px;text-align:center;"></div>
-        </div>
-        <div class="param-item checkbox-group">
-            <label><input type="checkbox" id="ai-show-outline" checked> 显示轮廓线</label>
+        <button id="ai-extract-btn" class="action-btn accent full-width">提取前景蒙版</button>
+        <div id="ai-mask-status" class="status-text"></div>
+        <div class="toggle-row">
+            <label class="toggle-label"><input type="checkbox" id="ai-show-outline" checked> 显示轮廓线</label>
         </div>
     `;
     section.content.appendChild(aiControls);
@@ -304,19 +299,25 @@ function createOcclusionControlSection() {
  * 绑定遮罩控制事件
  */
 function _bindOcclusionEvents() {
-    const modeSelect = document.getElementById('occlusion-mode-select');
+    const modeBar = document.querySelector('.occlusion-mode-bar');
     const polyControls = document.getElementById('polygon-mask-controls');
     const aiControls = document.getElementById('ai-mask-controls');
 
-    if (modeSelect) {
-        modeSelect.value = occlusionMode || 'none';
-        modeSelect.addEventListener('change', () => {
-            const mode = modeSelect.value;
-            polyControls.style.display = mode === 'polygon' ? '' : 'none';
-            aiControls.style.display = mode === 'ai' ? '' : 'none';
-            if (typeof enableOcclusionMode === 'function') {
-                enableOcclusionMode(mode);
-            }
+    if (modeBar) {
+        const modeBtns = modeBar.querySelectorAll('.mode-btn');
+        // 恢复当前模式
+        modeBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === (occlusionMode || 'none'));
+            btn.addEventListener('click', () => {
+                modeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const mode = btn.dataset.mode;
+                polyControls.style.display = mode === 'polygon' ? '' : 'none';
+                aiControls.style.display = mode === 'ai' ? '' : 'none';
+                if (typeof enableOcclusionMode === 'function') {
+                    enableOcclusionMode(mode);
+                }
+            });
         });
         // 初始状态
         polyControls.style.display = occlusionMode === 'polygon' ? '' : 'none';
@@ -416,8 +417,8 @@ function _bindOcclusionEvents() {
         aiShowOutline.checked = occlusionState.showAIOutline;
         aiShowOutline.addEventListener('change', () => {
             occlusionState.showAIOutline = aiShowOutline.checked;
-            if (typeof applyAIMask === 'function' && occlusionState.extractedMaskTexture) {
-                applyAIMask();
+            if (typeof _drawAIMaskOutline === 'function' && occlusionState.extractedMaskTexture) {
+                _drawAIMaskOutline();
             }
         });
     }
@@ -452,10 +453,10 @@ function createAmbientLightingSection() {
     const section = createCollapsibleSection('环境光照', false);
 
     section.content.innerHTML = `
-        <div class="param-item checkbox-group">
-            <label><input type="checkbox" id="ambient-enabled"> 启用环境光照</label>
+        <div class="toggle-row" style="margin-bottom:8px;">
+            <label class="toggle-label"><input type="checkbox" id="ambient-enabled"> 启用环境光照</label>
         </div>
-        <div id="ambient-controls" style="display:none;">
+        <div id="ambient-controls" class="occlusion-sub-panel" style="display:none;">
             <div class="param-item">
                 <label>效果强度 <span id="ambient-intensity-val">0.50</span></label>
                 <input type="range" id="ambient-intensity" min="0" max="1" step="0.05" value="0.5">
@@ -464,35 +465,43 @@ function createAmbientLightingSection() {
                 <label>平滑度 <span id="ambient-smoothing-val">0.30</span></label>
                 <input type="range" id="ambient-smoothing" min="0.05" max="1" step="0.05" value="0.3">
             </div>
-            <div class="subsection-divider" style="margin:12px 0;border-top:1px solid rgba(255,255,255,0.1);"></div>
-            <div class="param-item checkbox-group">
-                <label><input type="checkbox" id="ambient-colortemp" checked> 色温调整</label>
-            </div>
-            <div class="param-item">
-                <label>色温强度 <span id="ambient-colortemp-str-val">1.00</span></label>
-                <input type="range" id="ambient-colortemp-str" min="0" max="2" step="0.1" value="1.0">
-            </div>
-            <div class="param-item checkbox-group">
-                <label><input type="checkbox" id="ambient-brightness" checked> 亮度调整</label>
-            </div>
-            <div class="param-item">
-                <label>亮度强度 <span id="ambient-brightness-str-val">1.00</span></label>
-                <input type="range" id="ambient-brightness-str" min="0" max="2" step="0.1" value="1.0">
-            </div>
-            <div class="subsection-divider" style="margin:12px 0;border-top:1px solid rgba(255,255,255,0.1);"></div>
-            <div class="param-item checkbox-group">
-                <label><input type="checkbox" id="ambient-contrast"> 对比度增强</label>
-            </div>
-            <div class="param-item">
-                <label>对比度强度 <span id="ambient-contrast-str-val">0.30</span></label>
-                <input type="range" id="ambient-contrast-str" min="0" max="1" step="0.05" value="0.3">
-            </div>
-            <div class="param-item checkbox-group">
-                <label><input type="checkbox" id="ambient-saturation"> 饱和度增强</label>
-            </div>
-            <div class="param-item">
-                <label>饱和度强度 <span id="ambient-saturation-str-val">0.20</span></label>
-                <input type="range" id="ambient-saturation-str" min="0" max="1" step="0.05" value="0.2">
+            <div class="ambient-grid">
+                <div class="ambient-card">
+                    <div class="toggle-row">
+                        <label class="toggle-label"><input type="checkbox" id="ambient-colortemp" checked> 色温</label>
+                    </div>
+                    <div class="param-item compact">
+                        <input type="range" id="ambient-colortemp-str" min="0" max="2" step="0.1" value="1.0">
+                        <span class="range-val" id="ambient-colortemp-str-val">1.00</span>
+                    </div>
+                </div>
+                <div class="ambient-card">
+                    <div class="toggle-row">
+                        <label class="toggle-label"><input type="checkbox" id="ambient-brightness" checked> 亮度</label>
+                    </div>
+                    <div class="param-item compact">
+                        <input type="range" id="ambient-brightness-str" min="0" max="2" step="0.1" value="1.0">
+                        <span class="range-val" id="ambient-brightness-str-val">1.00</span>
+                    </div>
+                </div>
+                <div class="ambient-card">
+                    <div class="toggle-row">
+                        <label class="toggle-label"><input type="checkbox" id="ambient-contrast"> 对比度</label>
+                    </div>
+                    <div class="param-item compact">
+                        <input type="range" id="ambient-contrast-str" min="0" max="1" step="0.05" value="0.3">
+                        <span class="range-val" id="ambient-contrast-str-val">0.30</span>
+                    </div>
+                </div>
+                <div class="ambient-card">
+                    <div class="toggle-row">
+                        <label class="toggle-label"><input type="checkbox" id="ambient-saturation"> 饱和度</label>
+                    </div>
+                    <div class="param-item compact">
+                        <input type="range" id="ambient-saturation-str" min="0" max="1" step="0.05" value="0.2">
+                        <span class="range-val" id="ambient-saturation-str-val">0.20</span>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -563,7 +572,7 @@ function _bindAmbientEvents() {
             if (ambientLightingPlugin) ambientLightingPlugin.enableContrast = contrast.checked;
         });
     }
-    _bindSlider('ambient-contrast-str', null, (v) => {
+    _bindSlider('ambient-contrast-str', 'ambient-contrast-str-val', (v) => {
         if (ambientLightingPlugin) ambientLightingPlugin.contrastStrength = v;
     });
 
@@ -574,7 +583,7 @@ function _bindAmbientEvents() {
             if (ambientLightingPlugin) ambientLightingPlugin.enableSaturation = saturation.checked;
         });
     }
-    _bindSlider('ambient-saturation-str', null, (v) => {
+    _bindSlider('ambient-saturation-str', 'ambient-saturation-str-val', (v) => {
         if (ambientLightingPlugin) ambientLightingPlugin.saturationStrength = v;
     });
 }

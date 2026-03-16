@@ -89,9 +89,15 @@ function updateForegroundSprite(texture, width, height) {
 
     app.stage.addChild(foregroundSprite);
 
-    // 如果当前有遮罩模式，应用 mask
+    // 如果当前有遮罩模式，应用 mask；否则隐藏前景避免遮挡模型
     if (occlusionMode === 'polygon' && occlusionMask) {
         foregroundSprite.mask = occlusionMask;
+        foregroundSprite.visible = true;
+    } else if (occlusionMode === 'ai' && occlusionState.extractedMaskTexture) {
+        foregroundSprite.visible = true;
+        if (typeof applyAIMask === 'function') applyAIMask();
+    } else {
+        foregroundSprite.visible = false;
     }
 }
 
@@ -133,19 +139,23 @@ function enableOcclusionMode(mode) {
                 [cw * 0.5, midY - 30], [cw * 0.75, midY - 20], [cw, midY]
             ];
         }
+        foregroundSprite.visible = true;
         foregroundSprite.mask = occlusionMask;
         redrawOcclusionMask(true);
         maskEditorLayer.visible = true;
     } else if (mode === 'ai') {
-        // AI 模式：如果还没有提取蒙版，只显示编辑器层但不应用 mask
+        // AI 模式：如果还没有提取蒙版，隐藏前景避免遮挡模型
         if (occlusionState.extractedMaskTexture) {
-            // 已有 AI 蒙版，重新应用
+            foregroundSprite.visible = true;
             if (typeof applyAIMask === 'function') {
                 applyAIMask();
             }
+        } else {
+            foregroundSprite.visible = false;
         }
         maskEditorLayer.visible = true;
     } else {
+        foregroundSprite.visible = false;
         foregroundSprite.mask = null;
         maskEditorLayer.visible = false;
     }
@@ -159,6 +169,7 @@ function disableOcclusion() {
 
     if (foregroundSprite) {
         foregroundSprite.mask = null;
+        foregroundSprite.visible = false;
     }
 
     // 清理 AI 蒙版精灵
