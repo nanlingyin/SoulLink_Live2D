@@ -301,7 +301,7 @@ A: 将模型文件夹放入 `l2d/` 目录（或 `server.modelDirs` 配置的任�
 A: 检查 `config.yaml` 中的 `apiKey` 和 `baseUrl` 是否正确。也可以在设置页面（右上角齿轮图标）中直接修改。
 
 **Q: AI 蒙版提取不工作？**
-A: 需要在 `config.yaml` 的 `experimental.imageGen` 中配置支持图像理解的模型 API（如 GPT-4o）。
+A: 需要在 `config.yaml` 的 `experimental.imageGen` 中配置支持图像理解与生成的模型 API（如 gemini-image）。
 
 **Q: 如何自定义模型的表情规则？**
 A: 在模型目录下创建 `model_prompt.txt`，描述该模型的参数能力和动作规则，加载模型时会自动读取。

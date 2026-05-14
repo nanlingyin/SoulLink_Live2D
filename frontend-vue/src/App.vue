@@ -15,17 +15,18 @@ const connectionState = ref('connecting');
 const models = ref([]);
 const currentModel = ref('');
 
-const messages = ref([
-  {
-    id: `sys-${Date.now()}`,
-    role: 'system',
-    content: '欢迎使用 SoulLink，输入消息后将触发表情与语音联动。'
-  }
-]);
+const messages = ref([]);
 const chatInput = ref('');
 const isSending = ref(false);
 const chatHistory = ref([]);
 const chatViewport = ref(null);
+
+const quickPrompts = [
+  { label: '你今天过得怎么样', text: '你今天过得怎么样？' },
+  { label: '陪我聊聊天', text: '我有点累，陪我聊聊天好吗？' },
+  { label: '推荐点开心的', text: '推荐点能让我开心的事情吧。' },
+  { label: '夸夸我', text: '今天心情不太好，夸夸我吧。' }
+];
 
 const voiceEnabled = ref(false);
 const ttsEnabled = ref(false);
@@ -36,7 +37,7 @@ const language = ref('zh');
 const mobileMode = ref(false);
 const mobileTab = ref('chat');
 
-const showControlPanel = ref(true);
+const showControlPanel = ref(false);
 const showChatPanel = ref(true);
 const showSystemInfo = ref(false);
 const showSettings = ref(false);
@@ -81,12 +82,21 @@ const currentBackgroundLabel = computed(() => {
   return backgroundOptions.value[activeBackgroundIndex.value]?.label || '背景';
 });
 
+const assistantInitial = computed(() => {
+  const name = (currentModel.value || 'AI').trim();
+  if (!name) {
+    return 'AI';
+  }
+  const cleaned = name.replace(/[^\p{L}\p{N}]/gu, '');
+  return (cleaned.slice(0, 2) || 'AI').toUpperCase();
+});
+
 const backgroundStyle = computed(() => {
   const active = backgroundOptions.value[activeBackgroundIndex.value];
   if (!active) {
     return {
       background:
-        'linear-gradient(125deg, rgba(6, 25, 39, 0.95) 0%, rgba(12, 45, 66, 0.92) 45%, rgba(25, 52, 72, 0.9) 100%)'
+        'radial-gradient(ellipse at 22% 18%, rgba(252,200,165,0.26), transparent 70%), radial-gradient(ellipse at 78% 22%, rgba(237,169,179,0.22), transparent 70%), linear-gradient(135deg, #2e1d27 0%, #3a2330 50%, #2a1922 100%)'
     };
   }
 
@@ -138,25 +148,21 @@ function addMessage(content, role = 'system') {
 }
 
 function clearChat() {
-  messages.value = [
-    {
-      id: `sys-${Date.now()}`,
-      role: 'system',
-      content: tr('chat.cleared', '聊天已清空，开始新的对话吧。')
-    }
-  ];
+  messages.value = [];
   chatHistory.value = [];
 }
 
+function sendQuickPrompt(text) {
+  if (isSending.value) {
+    return;
+  }
+  chatInput.value = text;
+  sendChatMessage();
+}
+
 async function discoverBackgrounds() {
-  const wallpaperCandidates = ['Lynn.png', 'Lynn.jpg', 'Lynn.jpeg', 'wallpaper.png', 'wallpaper.jpg'];
-  const availableWallpapers = [
-    {
-      label: '壁纸 · Lynn.png',
-      type: 'image',
-      value: '/static/background/Lynn.png'
-    }
-  ];
+  const wallpaperCandidates = ['wallpaper.png', 'wallpaper.jpg', 'wallpaper.jpeg'];
+  const availableWallpapers = [];
 
   await Promise.all(
     wallpaperCandidates.map(async (name) => {
@@ -176,25 +182,35 @@ async function discoverBackgrounds() {
     })
   );
 
-  const scenicGradients = [
+  const warmGradients = [
     {
-      label: '暮海蓝调',
+      label: '暖夜默认',
       type: 'gradient',
-      value: 'linear-gradient(125deg, #081623 0%, #12344d 48%, #1d5268 100%)'
+      value: 'radial-gradient(ellipse at 22% 18%, rgba(252,200,165,0.26), transparent 70%), radial-gradient(ellipse at 78% 22%, rgba(237,169,179,0.22), transparent 70%), linear-gradient(135deg, #2e1d27 0%, #3a2330 50%, #2a1922 100%)'
     },
     {
-      label: '日落铜橙',
+      label: '黄昏铜橙',
       type: 'gradient',
-      value: 'linear-gradient(135deg, #1a1826 0%, #4d2d2d 45%, #9e5f35 100%)'
+      value: 'radial-gradient(ellipse at 50% 95%, rgba(255,170,110,0.34), transparent 55%), linear-gradient(180deg, #2a1820 0%, #4a2630 45%, #6e3322 100%)'
     },
     {
-      label: '雨林雾绿',
+      label: '古董玫瑰',
       type: 'gradient',
-      value: 'linear-gradient(135deg, #0f1b1d 0%, #1f3a3a 46%, #3b6b58 100%)'
+      value: 'radial-gradient(ellipse at 30% 30%, rgba(237,169,179,0.32), transparent 60%), linear-gradient(160deg, #2a1820 0%, #4a2832 55%, #5e2c3a 100%)'
+    },
+    {
+      label: '夜灯琥珀',
+      type: 'gradient',
+      value: 'radial-gradient(circle at 80% 20%, rgba(255,196,150,0.32), transparent 50%), radial-gradient(circle at 20% 80%, rgba(210,136,152,0.22), transparent 50%), linear-gradient(135deg, #2a1922 0%, #3a2230 100%)'
+    },
+    {
+      label: '森林夜色',
+      type: 'gradient',
+      value: 'radial-gradient(ellipse at 40% 70%, rgba(170,200,160,0.18), transparent 65%), linear-gradient(160deg, #1e2924 0%, #2c3530 50%, #25282a 100%)'
     }
   ];
 
-  backgroundOptions.value = [...availableWallpapers, ...scenicGradients];
+  backgroundOptions.value = [...warmGradients, ...availableWallpapers];
 
   const configuredDefault = Number(window.getConfig?.('ui.defaultBackground', 0) || 0);
   if (backgroundOptions.value.length > 0) {
@@ -467,7 +483,7 @@ async function bootstrap() {
       language.value = window.I18N.getLanguage();
     }
 
-    showControlPanel.value = window.getConfig?.('ui.showControlPanel', true) !== false;
+    showControlPanel.value = false;
 
     const configResponse = await fetch('/api/config');
     if (configResponse.ok) {
@@ -530,148 +546,268 @@ onBeforeUnmount(() => {
     <div class="background-layer" :style="backgroundStyle"></div>
     <div class="background-mask"></div>
 
-    <header class="top-bar">
-      <div class="brand-block">
-        <div class="brand-icon">SL</div>
-        <div>
-          <div class="brand-title">SoulLink Live2D</div>
-          <div class="brand-subtitle">Vue Frontend + Python Backend</div>
+    <!-- Stage: Live2D 占满整个屏幕 -->
+    <section class="stage">
+      <div id="live2d-container" class="live2d-container">
+        <canvas id="live2d-canvas"></canvas>
+      </div>
+
+      <div id="loading" class="loading-card" v-show="booting">
+        <div class="loading-logo">SL</div>
+        <div>{{ bootMessage }}</div>
+      </div>
+
+      <!-- 舞台左下：角色身份卡 -->
+      <div class="stage-id-card">
+        <div class="stage-id-avatar" aria-hidden="true">{{ assistantInitial }}</div>
+        <div class="stage-id-meta">
+          <span class="stage-id-name">{{ currentModel || '等待模型' }}</span>
+          <span class="stage-id-mood">{{ tr('stage.mood', '在你身边') }}</span>
         </div>
       </div>
 
-      <div class="toolbar-grid">
-        <label class="toolbar-item">
-          <span>连接状态</span>
-          <strong :class="['connection-chip', `is-${connectionState}`]">{{ connectionBadgeText }}</strong>
-        </label>
+      <!-- 舞台右下：浮动操作 -->
+      <div class="stage-fab-stack">
+        <button type="button" class="stage-fab" @click="cycleBackground" :title="currentBackgroundLabel">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="9" cy="9" r="1.6" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+          <span class="stage-fab-label">{{ currentBackgroundLabel }}</span>
+        </button>
+        <button type="button" class="stage-fab" @click="resetModelPose">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <polyline points="3 4 3 10 9 10" />
+          </svg>
+          <span class="stage-fab-label">{{ tr('controls.reset_position', '重置位置') }}</span>
+        </button>
+      </div>
+    </section>
 
-        <label class="toolbar-item">
-          <span>模型</span>
-          <select v-model="currentModel" @change="onModelSwitch">
-            <option value="">等待模型...</option>
-            <option v-for="model in models" :key="model.name" :value="model.name">
-              {{ model.name }}
-            </option>
-          </select>
-        </label>
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand-block">
+        <div class="brand-icon"><span class="brand-icon-text">SL</span></div>
+        <div class="brand-text">
+          <div class="brand-title">SoulLink</div>
+          <div class="brand-subtitle">陪你聊天的虚拟伙伴</div>
+        </div>
+      </div>
 
-        <label class="toolbar-item">
-          <span>语言</span>
-          <select v-model="language" @change="setLanguage(language)">
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select>
-        </label>
+      <div class="top-bar-actions">
+        <span class="connection-chip" :class="`is-${connectionState}`">
+          <span class="connection-dot" aria-hidden="true"></span>
+          {{ connectionBadgeText }}
+        </span>
 
-        <button class="settings-button" @click="openSettings" title="系统设置">
-          ⚙️
+        <select v-model="currentModel" @change="onModelSwitch" :title="tr('toolbar.model', '陪伴对象')">
+          <option value="">加载模型中</option>
+          <option v-for="model in models" :key="model.name" :value="model.name">
+            {{ model.name }}
+          </option>
+        </select>
+
+        <select v-model="language" @change="setLanguage(language)" :title="tr('toolbar.language', '语言')">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+
+        <button
+          type="button"
+          class="icon-btn"
+          :class="{ 'is-active': showControlPanel }"
+          :title="showControlPanel ? '关闭控制台' : '打开控制台'"
+          :aria-pressed="showControlPanel"
+          @click="toggleControlDock"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+            <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+            <circle cx="7" cy="18" r="2" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          class="icon-btn"
+          :class="{ 'is-active': showSystemInfo }"
+          :title="showSystemInfo ? '隐藏信息' : '显示信息'"
+          :aria-pressed="showSystemInfo"
+          @click="toggleSystemInfo"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="11" x2="12" y2="16" />
+            <circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+
+        <button type="button" class="icon-btn settings-button" @click="openSettings" title="系统设置" aria-label="系统设置">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
         </button>
       </div>
     </header>
 
-    <main class="workspace" :class="{ mobile: mobileMode }">
-      <aside class="panel chat-panel" :class="{ hidden: !showChatPanel }" v-show="showChatPanel && (!mobileMode || mobileTab === 'chat')">
-        <div class="panel-header">
-          <h3>{{ tr('chat.title', 'AI 对话') }}</h3>
-          <button class="text-button" type="button" @click="clearChat">清空</button>
+    <!-- Chat Dock: 浮在屏幕底部 -->
+    <div class="chat-dock">
+      <div ref="chatViewport" class="chat-stream" v-if="messages.length > 0 || isSending">
+        <article
+          v-for="message in messages"
+          :key="message.id"
+          class="chat-message"
+          :class="`is-${message.role}`"
+        >
+          <div v-if="message.role === 'assistant'" class="chat-avatar" aria-hidden="true">
+            {{ assistantInitial }}
+          </div>
+          <div class="chat-bubble">{{ message.content }}</div>
+        </article>
+
+        <article v-if="isSending" class="chat-message is-assistant">
+          <div class="chat-avatar" aria-hidden="true">{{ assistantInitial }}</div>
+          <div class="chat-bubble">
+            <span class="typing-dots" aria-label="正在思考">
+              <span></span><span></span><span></span>
+            </span>
+          </div>
+        </article>
+      </div>
+
+      <div class="chat-welcome" v-else>
+        <div class="chat-welcome-text">
+          <div class="chat-avatar" aria-hidden="true">{{ assistantInitial }}</div>
+          <div>你好呀，我在这里陪你。<strong>挑一句开个话头</strong>，或者直接说点什么都好。</div>
         </div>
-
-        <div ref="chatViewport" class="chat-messages">
-          <article
-            v-for="message in messages"
-            :key="message.id"
-            class="chat-message"
-            :class="`is-${message.role}`"
-          >
-            {{ message.content }}
-          </article>
-
-          <article v-if="isSending" class="chat-message is-assistant is-typing">AI 正在思考...</article>
-        </div>
-
-        <div class="chat-input-area">
-          <input
-            v-model="chatInput"
-            type="text"
-            :placeholder="tr('chat.input_placeholder', '输入你的消息...')"
-            @keydown="onInputEnter"
-          />
-
+        <div class="chat-quick-chips">
           <button
-            v-if="voiceEnabled"
+            v-for="prompt in quickPrompts"
+            :key="prompt.label"
             type="button"
-            class="icon-button"
-            :class="{ recording: voiceState === 'recording' }"
-            :title="tr('voice.input', '语音输入')"
-            @click="toggleVoiceRecording"
+            class="chat-quick-chip"
+            :disabled="isSending"
+            @click="sendQuickPrompt(prompt.text)"
           >
-            {{ voiceButtonText }}
-          </button>
-
-          <button type="button" class="primary-button" :disabled="isSending" @click="sendChatMessage">
-            {{ isSending ? tr('chat.sending', '发送中...') : tr('chat.send', '发送') }}
+            {{ prompt.label }}
           </button>
         </div>
-      </aside>
+      </div>
 
-      <section class="stage-section">
-        <div id="live2d-container" class="live2d-container">
-          <div id="loading" class="loading-card">
-            <div class="loading-logo">SL</div>
-            <div>{{ booting ? bootMessage : tr('loading.model', '正在加载模型...') }}</div>
-          </div>
+      <div class="chat-compose">
+        <button
+          v-if="messages.length > 0"
+          type="button"
+          class="chat-compose-clear"
+          :title="tr('chat.clear', '清空对话')"
+          @click="clearChat"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+        </button>
+        <span v-else class="chat-compose-clear" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          </svg>
+        </span>
 
-          <canvas id="live2d-canvas"></canvas>
+        <input
+          v-model="chatInput"
+          type="text"
+          :placeholder="tr('chat.input_placeholder', '想说点什么...')"
+          @keydown="onInputEnter"
+        />
 
-          <div class="stage-actions">
-            <button type="button" class="ghost-button" @click="resetModelPose">
-              {{ tr('controls.reset_position', '重置位置') }}
-            </button>
-            <button type="button" class="ghost-button" @click="cycleBackground">
-              切换背景 · {{ currentBackgroundLabel }}
-            </button>
-            <button type="button" class="ghost-button" @click="toggleChatPanel">
-              {{ showChatPanel ? '隐藏对话' : '显示对话' }}
-            </button>
-            <button type="button" class="ghost-button" @click="toggleControlDock">
-              {{ showControlPanel ? '隐藏控制' : '显示控制' }}
-            </button>
-            <button type="button" class="ghost-button" @click="toggleSystemInfo">
-              {{ showSystemInfo ? '隐藏信息' : '显示信息' }}
-            </button>
-          </div>
-        </div>
+        <button
+          v-if="voiceEnabled"
+          type="button"
+          class="compose-mic"
+          :class="{ recording: voiceState === 'recording' }"
+          :title="tr('voice.input', '语音输入')"
+          @click="toggleVoiceRecording"
+        >
+          <svg v-if="voiceState !== 'recording'" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="12" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0" />
+            <line x1="12" y1="18" x2="12" y2="22" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        </button>
 
-        <div id="system-info" class="system-info-card" v-show="showSystemInfo"></div>
-      </section>
-
-      <aside
-        class="panel control-panel-shell"
-        :class="{ hidden: !showControlPanel }"
-        v-show="showControlPanel && (!mobileMode || mobileTab === 'control')"
-      >
-        <div id="control-panel" class="control-panel"></div>
-      </aside>
-    </main>
-
-    <div v-if="mobileMode" class="mobile-tabs">
-      <button
-        type="button"
-        class="tab-button"
-        :class="{ active: mobileTab === 'chat' }"
-        @click="mobileTab = 'chat'"
-      >
-        对话
-      </button>
-      <button
-        type="button"
-        class="tab-button"
-        :class="{ active: mobileTab === 'control' }"
-        @click="mobileTab = 'control'"
-      >
-        控制
-      </button>
+        <button type="button" class="compose-send" :disabled="isSending" @click="sendChatMessage">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+          {{ isSending ? tr('chat.sending', '发送中') : tr('chat.send', '发送') }}
+        </button>
+      </div>
     </div>
+
+    <!-- Right Drawer: 控制面板（DOM 始终存在，让 legacy JS 能注入） -->
+    <transition name="drawer-fade">
+      <div v-if="showControlPanel" class="drawer-overlay" @click="toggleControlDock"></div>
+    </transition>
+    <aside class="drawer" :class="{ 'is-open': showControlPanel }">
+      <header class="drawer-header">
+        <h3 class="drawer-title">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+            <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+            <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+            <circle cx="7" cy="18" r="2" fill="currentColor" stroke="none" />
+          </svg>
+          表情控制台
+        </h3>
+        <button type="button" class="drawer-close" @click="toggleControlDock" title="关闭">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="6" y1="18" x2="18" y2="6" />
+          </svg>
+        </button>
+      </header>
+      <div class="drawer-body">
+        <div id="control-panel" class="control-panel"></div>
+      </div>
+    </aside>
+
+    <!-- System Info Drawer -->
+    <transition name="drawer-fade">
+      <div v-if="showSystemInfo" class="drawer-overlay" @click="toggleSystemInfo"></div>
+    </transition>
+    <aside class="drawer" :class="{ 'is-open': showSystemInfo }">
+      <header class="drawer-header">
+        <h3 class="drawer-title">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="11" x2="12" y2="16" />
+            <circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none" />
+          </svg>
+          系统信息
+        </h3>
+        <button type="button" class="drawer-close" @click="toggleSystemInfo" title="关闭">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="6" y1="18" x2="18" y2="6" />
+          </svg>
+        </button>
+      </header>
+      <div class="drawer-body">
+        <div id="system-info" class="system-info-card"></div>
+      </div>
+    </aside>
 
     <SettingsPage v-if="showSettings" @close="closeSettings" />
   </div>

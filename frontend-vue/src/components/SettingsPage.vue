@@ -204,7 +204,12 @@ onMounted(() => {
     <div class="settings-modal">
       <div class="settings-header">
         <h2>系统设置</h2>
-        <button class="close-button" @click="emit('close')" :disabled="saving">✕</button>
+        <button class="close-button" @click="emit('close')" :disabled="saving" aria-label="关闭设置">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
       </div>
 
       <div class="settings-toolbar">
@@ -568,7 +573,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 6, 10, 0.78);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,15 +582,16 @@ onMounted(() => {
 }
 
 .settings-modal {
-  background: linear-gradient(135deg, #1a1f2e 0%, #252b3d 100%);
-  border-radius: 12px;
+  background: linear-gradient(135deg, #422b38 0%, #322028 100%);
+  border-radius: 18px;
   width: 100%;
   max-width: 900px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(30, 12, 18, 0.55);
+  border: 1px solid rgba(247, 199, 167, 0.24);
+  color: #fef4ec;
 }
 
 .settings-header {
@@ -593,34 +599,35 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(247, 199, 167, 0.14);
 }
 
 .settings-header h2 {
   margin: 0;
-  font-size: 24px;
-  color: #fff;
+  font-size: 22px;
+  color: #fef0e3;
+  font-weight: 600;
 }
 
 .close-button {
-  background: none;
-  border: none;
-  color: #aaa;
-  font-size: 24px;
+  background: rgba(40, 22, 28, 0.8);
+  border: 1px solid rgba(247, 199, 167, 0.18);
+  color: rgba(245, 220, 200, 0.78);
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
+  border-radius: 9px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(244, 165, 116, 0.16);
+  color: #f7c7a7;
+  border-color: rgba(244, 165, 116, 0.5);
 }
 
 .settings-toolbar {
@@ -628,7 +635,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(247, 199, 167, 0.14);
   gap: 16px;
 }
 
@@ -638,47 +645,51 @@ onMounted(() => {
 }
 
 .view-button {
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #aaa;
-  border-radius: 6px;
+  padding: 8px 18px;
+  background: rgba(40, 22, 28, 0.7);
+  border: 1px solid rgba(247, 199, 167, 0.18);
+  color: rgba(245, 220, 200, 0.78);
+  border-radius: 9px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
   font-size: 14px;
 }
 
 .view-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(244, 165, 116, 0.14);
+  color: #f7c7a7;
+  border-color: rgba(244, 165, 116, 0.42);
 }
 
 .view-button.active {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: #3b82f6;
-  color: #3b82f6;
+  background: linear-gradient(135deg, rgba(232, 137, 92, 0.42), rgba(232, 154, 166, 0.32));
+  border-color: rgba(244, 165, 116, 0.6);
+  color: #fef0e3;
 }
 
 .save-button {
-  padding: 8px 20px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  padding: 9px 22px;
+  background: linear-gradient(135deg, #e8895c, #e89aa6);
   border: none;
-  color: white;
-  border-radius: 6px;
+  color: #fff8f0;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
+  font-weight: 600;
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+  box-shadow: 0 6px 16px rgba(232, 137, 92, 0.3);
 }
 
 .save-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  filter: brightness(1.08);
+  box-shadow: 0 10px 22px rgba(232, 137, 92, 0.42);
 }
 
 .save-button:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .message {
@@ -688,15 +699,15 @@ onMounted(() => {
 }
 
 .message.success {
-  background: rgba(34, 197, 94, 0.1);
-  color: #22c55e;
-  border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+  background: rgba(168, 213, 159, 0.14);
+  color: #b8db9e;
+  border-bottom: 1px solid rgba(168, 213, 159, 0.28);
 }
 
 .message.error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(232, 128, 128, 0.14);
+  color: #f0a8a8;
+  border-bottom: 1px solid rgba(232, 128, 128, 0.32);
 }
 
 .settings-content {
@@ -705,53 +716,64 @@ onMounted(() => {
   padding: 24px;
 }
 
+.settings-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background: rgba(247, 199, 167, 0.32);
+  border-radius: 999px;
+}
+
 .loading-state {
   text-align: center;
   padding: 40px;
-  color: #aaa;
+  color: rgba(245, 220, 200, 0.7);
 }
 
 .form-view {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .config-section {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  background: rgba(58, 38, 50, 0.7);
+  border: 1px solid rgba(247, 199, 167, 0.18);
+  border-radius: 12px;
   padding: 20px;
 }
 
 .config-section h3 {
   margin: 0 0 16px 0;
-  font-size: 18px;
-  color: #fff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 16px;
+  color: #fce4d2;
+  border-bottom: 1px solid rgba(247, 199, 167, 0.14);
   padding-bottom: 8px;
+  font-weight: 600;
 }
 
 .subsection {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(247, 199, 167, 0.1);
 }
 
 .subsection h4 {
   margin: 0 0 12px 0;
-  font-size: 15px;
-  color: #aaa;
+  font-size: 14px;
+  color: rgba(245, 220, 200, 0.78);
+  font-weight: 600;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 6px;
-  color: #aaa;
+  color: rgba(245, 220, 200, 0.78);
   font-size: 13px;
 }
 
@@ -761,13 +783,14 @@ onMounted(() => {
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #fff;
+  padding: 9px 12px;
+  background: rgba(20, 10, 14, 0.8);
+  border: 1px solid rgba(247, 199, 167, 0.18);
+  border-radius: 8px;
+  color: #fbf3ec;
   font-size: 14px;
   font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .form-group textarea {
@@ -779,14 +802,15 @@ onMounted(() => {
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: rgba(244, 165, 116, 0.65);
+  background: rgba(28, 14, 20, 0.9);
+  box-shadow: 0 0 0 3px rgba(244, 165, 116, 0.14);
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 14px;
 }
 
 .checkbox-group {
@@ -800,12 +824,13 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #ccc;
+  color: rgba(245, 220, 200, 0.85);
 }
 
 .checkbox-group input[type="checkbox"] {
   width: auto;
   cursor: pointer;
+  accent-color: #f4a574;
 }
 
 .json-view {
@@ -819,29 +844,30 @@ onMounted(() => {
   width: 100%;
   min-height: 500px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #fff;
+  background: rgba(20, 10, 14, 0.85);
+  border: 1px solid rgba(247, 199, 167, 0.18);
+  border-radius: 10px;
+  color: #fbf3ec;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   line-height: 1.6;
   resize: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .json-editor.invalid {
-  border-color: #ef4444;
+  border-color: rgba(232, 128, 128, 0.6);
 }
 
 .json-editor:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: rgba(244, 165, 116, 0.65);
+  box-shadow: 0 0 0 3px rgba(244, 165, 116, 0.14);
 }
 
 .json-error {
   margin-top: 8px;
-  color: #ef4444;
+  color: #f0a8a8;
   font-size: 13px;
 }
 
